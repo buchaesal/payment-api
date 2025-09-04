@@ -14,6 +14,10 @@ public class PaymentConfirmRequest {
     private String productName;
     private Integer quantity;
     
+    // 회원 정보 및 적립금 사용
+    private String memberId;
+    private Long usePoints;
+    
     // 기본 생성자
     public PaymentConfirmRequest() {}
     
@@ -40,6 +44,8 @@ public class PaymentConfirmRequest {
     public String getCustomerPhone() { return customerPhone; }
     public String getProductName() { return productName; }
     public Integer getQuantity() { return quantity; }
+    public String getMemberId() { return memberId; }
+    public Long getUsePoints() { return usePoints; }
     
     // Setter 메서드들
     public void setPaymentKey(String paymentKey) { this.paymentKey = paymentKey; }
@@ -50,6 +56,8 @@ public class PaymentConfirmRequest {
     public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
     public void setProductName(String productName) { this.productName = productName; }
     public void setQuantity(Integer quantity) { this.quantity = quantity; }
+    public void setMemberId(String memberId) { this.memberId = memberId; }
+    public void setUsePoints(Long usePoints) { this.usePoints = usePoints; }
     
     // toString 메서드 (로그 출력용)
     @Override
@@ -63,6 +71,8 @@ public class PaymentConfirmRequest {
                 ", customerPhone='" + customerPhone + '\'' +
                 ", productName='" + productName + '\'' +
                 ", quantity=" + quantity +
+                ", memberId='" + memberId + '\'' +
+                ", usePoints=" + usePoints +
                 '}';
     }
 }
