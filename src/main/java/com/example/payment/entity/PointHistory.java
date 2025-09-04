@@ -22,19 +22,19 @@ public class PointHistory {
     @Column(nullable = false)
     private Long pointAmount;
     
-    @Column(length = 200)
-    private String description;
+    @Column(length = 100)
+    private String orderId;
     
     @Column(nullable = false)
     private LocalDateTime createdAt;
     
     protected PointHistory() {}
     
-    public PointHistory(Member member, PointType pointType, Long pointAmount, String description) {
+    public PointHistory(Member member, PointType pointType, Long pointAmount, String orderId) {
         this.member = member;
         this.pointType = pointType;
         this.pointAmount = pointAmount;
-        this.description = description;
+        this.orderId = orderId;
         this.createdAt = LocalDateTime.now();
     }
     
@@ -47,6 +47,6 @@ public class PointHistory {
     public Member getMember() { return member; }
     public PointType getPointType() { return pointType; }
     public Long getPointAmount() { return pointAmount; }
-    public String getDescription() { return description; }
+    public String getOrderId() { return orderId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
 }

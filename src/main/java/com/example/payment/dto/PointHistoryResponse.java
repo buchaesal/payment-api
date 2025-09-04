@@ -8,16 +8,16 @@ public class PointHistoryResponse {
     private Long id;
     private String pointType;
     private Long pointAmount;
-    private String description;
+    private String orderId;
     private LocalDateTime createdAt;
     
     public PointHistoryResponse() {}
     
-    public PointHistoryResponse(Long id, String pointType, Long pointAmount, String description, LocalDateTime createdAt) {
+    public PointHistoryResponse(Long id, String pointType, Long pointAmount, String orderId, LocalDateTime createdAt) {
         this.id = id;
         this.pointType = pointType;
         this.pointAmount = pointAmount;
-        this.description = description;
+        this.orderId = orderId;
         this.createdAt = createdAt;
     }
     
@@ -26,7 +26,7 @@ public class PointHistoryResponse {
             pointHistory.getId(),
             pointHistory.getPointType().toString(),
             pointHistory.getPointAmount(),
-            pointHistory.getDescription(),
+            pointHistory.getOrderId(),
             pointHistory.getCreatedAt()
         );
     }
@@ -34,12 +34,12 @@ public class PointHistoryResponse {
     public Long getId() { return id; }
     public String getPointType() { return pointType; }
     public Long getPointAmount() { return pointAmount; }
-    public String getDescription() { return description; }
+    public String getOrderId() { return orderId; }
     public LocalDateTime getCreatedAt() { return createdAt; }
     
     public void setId(Long id) { this.id = id; }
     public void setPointType(String pointType) { this.pointType = pointType; }
     public void setPointAmount(Long pointAmount) { this.pointAmount = pointAmount; }
-    public void setDescription(String description) { this.description = description; }
+    public void setOrderId(String orderId) { this.orderId = orderId; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

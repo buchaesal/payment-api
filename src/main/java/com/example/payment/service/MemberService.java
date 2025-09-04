@@ -47,7 +47,7 @@ public class MemberService {
             savedMember,
             PointHistory.PointType.EARN,
             1000L,
-            "회원가입 축하 적립금"
+            null  // 회원가입 적립금은 주문번호가 없음
         );
         pointHistoryRepository.save(pointHistory);
         
