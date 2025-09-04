@@ -1,6 +1,5 @@
 package com.example.payment.model;
 
-import com.inicis.std.util.SignatureUtil;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
@@ -31,34 +30,25 @@ public class InicisFactory {
     public static InicisPcPayInfo inicisPcPayInfo(String oid, String price) {
         throwIfEmpty(oid);
         throwIfEmpty(price);
-        String timestamp = SignatureUtil.getTimestamp();
+        String timestamp = inicisTimestamp();
         String mKey = inicisMkey();
         String signature = inicisSignature(oid, price, timestamp);
-        return new InicisPcPayInfo(MID, SIGN_KEY, timestamp, mKey, signature);
+        String verification = inicisVerification(oid, price, timestamp);
+        return new InicisPcPayInfo(MID, SIGN_KEY, timestamp, mKey, signature, verification);
     }
 
     private static String inicisSignature(String oid, String price, String timestamp) {
-        Map<String, String> signParam = new HashMap<>();
-        signParam.put("oid", oid);
-        signParam.put("price", price);
-        signParam.put("timestamp", timestamp);
-        String result = "";
-        try {
-            result = SignatureUtil.makeSignature(signParam);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        return result;
+        String nvpData = "oid=" + oid + "&price=" + price + "&timestamp=" + timestamp;
+        return hashSha256(nvpData);
+    }
+
+    private static String inicisVerification(String oid, String price, String timestamp) {
+        String nvpData = "oid=" + oid + "&price=" + price + "&signKey=" + SIGN_KEY + "&timestamp=" + timestamp;
+        return hashSha256(nvpData);
     }
 
     private static String inicisMkey() {
-        String result;
-        try {
-            result = SignatureUtil.hash(SIGN_KEY, "SHA-256");
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        return result;
+        return hashSha256(SIGN_KEY);
     }
 
     private static String clientIp() {
@@ -69,6 +59,19 @@ public class InicisFactory {
             throw new RuntimeException(e);
         }
         return clientIp;
+    }
+
+    private static String hashSha256(String data) {
+        String result;
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            digest.reset();
+            digest.update(data.getBytes(StandardCharsets.UTF_8));
+            result = String.format("%064x", new BigInteger(1, digest.digest()));
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 algorithm not available");
+        }
+        return result;
     }
 
     private static String hashSha512(String shaBaseStr) {
@@ -85,7 +88,7 @@ public class InicisFactory {
     }
 
     public static String inicisTimestamp() {
-        return SignatureUtil.getTimestamp();
+        return String.valueOf(System.currentTimeMillis());
     }
 
     public static Map<String, String> pcPayApproveReq(Map<String, String> payReturn, String timestamp) {
@@ -100,31 +103,14 @@ public class InicisFactory {
     }
 
     private static String pcSignature(String authToken, String timestamp) {
-        Map<String, String> signParam = new HashMap<>();
-        signParam.put("authToken", authToken);
-        signParam.put("timestamp", timestamp);
-        String result = "";
-        try {
-            result = SignatureUtil.makeSignature(signParam);
-        } catch (Exception e) {
-            throw new RuntimeException("making signature fail", e);
-        }
-        return result;
+        String nvpData = "authToken=" + authToken + "&signKey=" + SIGN_KEY + "&timestamp=" + timestamp;
+        return hashSha256(nvpData);
     }
 
     public static String pcSecureSignature(String timestamp, Map<String, String> approveResult) {
-        Map<String, String> secureMap = new HashMap<>();
-        secureMap.put("mid", MID);
-        secureMap.put("tstamp", timestamp);
-        secureMap.put("MOID", approveResult.get("MOID"));
-        secureMap.put("TotPrice", approveResult.get("TotPrice"));
-        String result;
-        try {
-            result = SignatureUtil.makeSignatureAuth(secureMap);
-        } catch (Exception e) {
-            throw new RuntimeException("making signature auth fail", e);
-        }
-        return result;
+        String nvpData = "mid=" + MID + "&signKey=" + SIGN_KEY + "&tstamp=" + timestamp + 
+                        "&MOID=" + approveResult.get("MOID") + "&TotPrice=" + approveResult.get("TotPrice");
+        return hashSha256(nvpData);
     }
 
     public static Map<String, String> pcNetCancelReq(Map<String, String> payReturn, String timestamp) {

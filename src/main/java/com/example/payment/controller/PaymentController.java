@@ -39,62 +39,47 @@ public class PaymentController {
         logger.info("=== 결제 승인 요청 받음 ===");
         logger.info("전체 요청 데이터: {}", request.toString());
         
-        // 각 필드별로 상세 로그 출력
-        logger.info("--- 토스페이먼츠 인증 응답값 ---");
-        logger.info("PaymentKey: {}", request.getPaymentKey());
-        logger.info("OrderId: {}", request.getOrderId());
-        logger.info("Amount: {}", request.getAmount());
-        
-        logger.info("--- 주문자 정보 ---");
-        logger.info("고객명: {}", request.getCustomerName());
-        logger.info("이메일: {}", request.getCustomerEmail());
-        logger.info("연락처: {}", request.getCustomerPhone());
-        
-        logger.info("--- 주문 상품 정보 ---");
-        logger.info("상품명: {}", request.getProductName());
-        logger.info("수량: {}", request.getQuantity());
-        
         // 적립금 사용 처리
         Long finalAmount = request.getAmount().longValue();
         String pointMessage = "";
         
-        if (request.getMemberId() != null && request.getUsePoints() != null && request.getUsePoints() > 0) {
-            logger.info("--- 적립금 사용 정보 ---");
-            logger.info("회원 ID: {}", request.getMemberId());
-            logger.info("사용 적립금: {}원", request.getUsePoints());
-            
-            try {
-                Member member = memberRepository.findByMemberId(request.getMemberId())
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
-                
-                if (member.getPoints() < request.getUsePoints()) {
-                    throw new IllegalArgumentException("보유 적립금이 부족합니다.");
-                }
-                
-                member.usePoints(request.getUsePoints());
-                memberRepository.save(member);
-                
-                PointHistory pointHistory = new PointHistory(
-                    member,
-                    PointHistory.PointType.USE,
-                    request.getUsePoints(),
-                    "결제 시 적립금 사용 (주문번호: " + request.getOrderId() + ")"
-                );
-                pointHistoryRepository.save(pointHistory);
-                
-                finalAmount = request.getAmount().longValue() - request.getUsePoints();
-                pointMessage = String.format(" (적립금 %d원 사용, 실결제금액: %d원)", request.getUsePoints(), finalAmount);
-                
-                logger.info("적립금 사용 완료 - 잔여 적립금: {}원", member.getPoints());
-                
-            } catch (Exception e) {
-                logger.error("적립금 사용 처리 중 오류 발생: {}", e.getMessage());
-                Map<String, Object> errorResponse = new HashMap<>();
-                errorResponse.put("status", "ERROR");
-                errorResponse.put("message", "적립금 사용 처리 중 오류가 발생했습니다: " + e.getMessage());
-                return ResponseEntity.badRequest().body(errorResponse);
-            }
-        }
+//        if (request.getMemberId() != null && request.getUsePoints() != null && request.getUsePoints() > 0) {
+//            logger.info("--- 적립금 사용 정보 ---");
+//            logger.info("회원 ID: {}", request.getMemberId());
+//            logger.info("사용 적립금: {}원", request.getUsePoints());
+//
+//            try {
+//                Member member = memberRepository.findByMemberId(request.getMemberId())
+//                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다."));
+//
+//                if (member.getPoints() < request.getUsePoints()) {
+//                    throw new IllegalArgumentException("보유 적립금이 부족합니다.");
+//                }
+//
+//                member.usePoints(request.getUsePoints());
+//                memberRepository.save(member);
+//
+//                PointHistory pointHistory = new PointHistory(
+//                    member,
+//                    PointHistory.PointType.USE,
+//                    request.getUsePoints(),
+//                    "결제 시 적립금 사용 (주문번호: " + request.getOrderId() + ")"
+//                );
+//                pointHistoryRepository.save(pointHistory);
+//
+//                finalAmount = request.getAmount().longValue() - request.getUsePoints();
+//                pointMessage = String.format(" (적립금 %d원 사용, 실결제금액: %d원)", request.getUsePoints(), finalAmount);
+//
+//                logger.info("적립금 사용 완료 - 잔여 적립금: {}원", member.getPoints());
+//
+//            } catch (Exception e) {
+//                logger.error("적립금 사용 처리 중 오류 발생: {}", e.getMessage());
+//                Map<String, Object> errorResponse = new HashMap<>();
+//                errorResponse.put("status", "ERROR");
+//                errorResponse.put("message", "적립금 사용 처리 중 오류가 발생했습니다: " + e.getMessage());
+//                return ResponseEntity.badRequest().body(errorResponse);
+//            }
+//        }
         
         logger.info("=== 결제 승인 요청 처리 완료 ===");
         
