@@ -14,8 +14,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
 
@@ -108,8 +106,8 @@ public class InicisFactory {
     }
 
     public static String pcSecureSignature(String timestamp, Map<String, String> approveResult) {
-        String nvpData = "mid=" + MID + "&signKey=" + SIGN_KEY + "&tstamp=" + timestamp + 
-                        "&MOID=" + approveResult.get("MOID") + "&TotPrice=" + approveResult.get("TotPrice");
+        String nvpData = "mid=" + MID + "&signKey=" + SIGN_KEY + "&tstamp=" + timestamp +
+                "&MOID=" + approveResult.get("MOID") + "&TotPrice=" + approveResult.get("TotPrice");
         return hashSha256(nvpData);
     }
 
@@ -183,7 +181,7 @@ public class InicisFactory {
         return req;
     }
 
-    private static String appendString(String ...strs){
+    private static String appendString(String... strs) {
         StringBuilder builder = new StringBuilder();
         for (String str : strs) {
             builder.append(str);
