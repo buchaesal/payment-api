@@ -3,7 +3,6 @@ package com.example.payment.entity;
 import com.example.payment.enums.PaymentMethod;
 import jakarta.persistence.*;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDateTime;
@@ -12,7 +11,6 @@ import java.time.LocalDateTime;
 @Table(name = "payments")
 @Getter
 @Setter
-@NoArgsConstructor
 public class Payment {
     
     @Id
@@ -33,6 +31,9 @@ public class Payment {
     @Column(name = "payment_amount", nullable = false)
     private Long paymentAmount;
     
+    @Column(name = "product_name", nullable = true, length = 255)
+    private String productName;
+    
     @Column(name = "payment_status", nullable = false, length = 20)
     private String paymentStatus; // SUCCESS, FAILED, CANCELLED
     
@@ -45,12 +46,17 @@ public class Payment {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
     
+    public Payment() {
+        // JPA용 기본 생성자
+    }
+    
     public Payment(String orderId, Member member, PaymentMethod paymentMethod, 
-                   Long paymentAmount, String paymentStatus) {
+                   Long paymentAmount, String productName, String paymentStatus) {
         this.orderId = orderId;
         this.member = member;
         this.paymentMethod = paymentMethod;
         this.paymentAmount = paymentAmount;
+        this.productName = productName;
         this.paymentStatus = paymentStatus;
         this.paymentAt = LocalDateTime.now();
         this.createdAt = LocalDateTime.now();
@@ -60,5 +66,18 @@ public class Payment {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+    
+    // Lombok이 제대로 작동하지 않을 경우를 위한 수동 getter 메서드들
+    public String getPaymentStatus() {
+        return paymentStatus;
+    }
+    
+    public Long getPaymentAmount() {
+        return paymentAmount;
+    }
+    
+    public String getProductName() {
+        return productName;
     }
 }

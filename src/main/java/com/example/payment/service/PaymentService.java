@@ -1,7 +1,11 @@
 package com.example.payment.service;
 
 import com.example.payment.dto.PaymentConfirmRequest;
+import com.example.payment.dto.PaymentConfirmResponse;
+import com.example.payment.dto.PaymentHistoryResponse;
+import com.example.payment.dto.PaymentOrderResponse;
 import com.example.payment.dto.PaymentItem;
+import com.example.payment.dto.PaymentDto;
 import com.example.payment.entity.Member;
 import com.example.payment.entity.Payment;
 import com.example.payment.enums.PaymentMethod;
@@ -19,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class PaymentService {
@@ -35,7 +40,7 @@ public class PaymentService {
     private MemberRepository memberRepository;
     
     @Transactional
-    public Map<String, Object> processPayment(PaymentConfirmRequest request) {
+    public PaymentConfirmResponse processPayment(PaymentConfirmRequest request) {
         logger.info("=== 복합결제 처리 시작 ===");
         logger.info("주문번호: {}, 총 결제금액: {}", request.getOrderId(), request.getTotalAmount());
         
@@ -76,6 +81,7 @@ public class PaymentService {
                     member,
                     item.getPaymentMethod(),
                     item.getAmount(),
+                    request.getProductName(),
                     paymentStatus
                 );
                 paymentRecords.add(paymentRecord);
@@ -93,18 +99,16 @@ public class PaymentService {
             paymentRepository.saveAll(paymentRecords);
             logger.info("결제 기본 정보 저장 완료");
             
-            // 전체 결과 구성
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "SUCCESS");
-            response.put("message", "복합결제가 성공적으로 처리되었습니다.");
-            response.put("orderId", request.getOrderId());
-            response.put("totalAmount", request.getTotalAmount());
-            response.put("processedAmount", totalProcessedAmount);
-            response.put("paymentResults", paymentResults);
-            response.put("paymentCount", paymentItems.size());
-            
             logger.info("=== 복합결제 처리 완료 ===");
-            return response;
+            return new PaymentConfirmResponse(
+                "SUCCESS",
+                "복합결제가 성공적으로 처리되었습니다.",
+                request.getOrderId(),
+                request.getTotalAmount(),
+                totalProcessedAmount,
+                paymentResults,
+                paymentItems.size()
+            );
             
         } catch (Exception e) {
             logger.error("복합결제 처리 중 오류 발생: {}", e.getMessage());
@@ -219,7 +223,28 @@ public class PaymentService {
         return itemRequest;
     }
     
-    public Map<String, Object> getPaymentHistory(String memberId) {
+    // Entity를 DTO로 변환하는 메서드
+    private PaymentDto convertToDto(Payment payment) {
+        return new PaymentDto(
+            payment.getId(),
+            payment.getOrderId(),
+            payment.getPaymentMethod() != null ? payment.getPaymentMethod().name() : null,
+            payment.getPaymentAmount(),
+            payment.getPaymentStatus(),
+            payment.getPaymentAt(),
+            payment.getProductName(),
+            payment.getMember() != null ? payment.getMember().getMemberId() : null
+        );
+    }
+    
+    // Entity 리스트를 DTO 리스트로 변환하는 메서드
+    private List<PaymentDto> convertToDtoList(List<Payment> paymentList) {
+        return paymentList.stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
+    }
+    
+    public PaymentHistoryResponse getPaymentHistory(String memberId) {
         logger.info("=== 결제내역 조회 시작 ===");
         logger.info("회원ID: {}", memberId);
         
@@ -230,17 +255,52 @@ public class PaymentService {
         // 해당 회원의 모든 결제 내역 조회
         List<Payment> paymentList = paymentRepository.findByMemberOrderByPaymentAtDesc(member);
         
+        // Entity를 DTO로 변환
+        List<PaymentDto> paymentDtoList = convertToDtoList(paymentList);
+        
         logger.info("조회된 결제내역 수: {}건", paymentList.size());
         
-        // 응답 구성
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "SUCCESS");
-        response.put("message", "결제내역 조회가 완료되었습니다.");
-        response.put("memberId", memberId);
-        response.put("paymentCount", paymentList.size());
-        response.put("paymentList", paymentList);
-        
         logger.info("=== 결제내역 조회 완료 ===");
-        return response;
+        return new PaymentHistoryResponse(
+            "SUCCESS",
+            "결제내역 조회가 완료되었습니다.",
+            memberId,
+            paymentDtoList.size(),
+            paymentDtoList
+        );
+    }
+    
+    public PaymentOrderResponse getPaymentByOrderId(String orderId) {
+        logger.info("=== 주문번호로 결제정보 조회 시작 ===");
+        logger.info("주문번호: {}", orderId);
+        
+        // 해당 주문번호의 모든 결제 내역 조회
+        List<Payment> paymentList = paymentRepository.findByOrderId(orderId);
+        
+        if (paymentList.isEmpty()) {
+            throw new IllegalArgumentException("해당 주문번호로 결제 내역을 찾을 수 없습니다: " + orderId);
+        }
+        
+        logger.info("조회된 결제내역 수: {}건", paymentList.size());
+        
+        // 총 결제금액 계산
+        Long totalAmount = paymentList.stream()
+            .filter(payment -> "SUCCESS".equals(payment.getPaymentStatus()))
+            .mapToLong(payment -> payment.getPaymentAmount())
+            .sum();
+        
+        // 상품명은 첫 번째 결제 기록에서 가져옴 (모든 결제가 같은 상품이므로)
+        String productName = paymentList.get(0).getProductName();
+        
+        logger.info("=== 주문번호로 결제정보 조회 완료 ===");
+        return new PaymentOrderResponse(
+            "SUCCESS",
+            "결제정보 조회가 완료되었습니다.",
+            orderId,
+            productName,
+            totalAmount,
+            paymentList.size(),
+            paymentList
+        );
     }
 }
