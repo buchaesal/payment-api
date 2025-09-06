@@ -34,6 +34,9 @@ public class PaymentConfirmRequest {
 
     // 카드 결제 인증결과 (authResult)
     private Map<String, String> authResultMap;
+    
+    // PG 구분코드 (TOSS, INICIS 등)
+    private String pgProvider;
 
     // 수동으로 추가한 getter/setter 메서드들 (Lombok 이슈 대응)
     public String getOrderId() { return orderId; }
@@ -74,4 +77,7 @@ public class PaymentConfirmRequest {
     
     public Map<String, String> getAuthResultMap() { return authResultMap; }
     public void setAuthResultMap(Map<String, String> authResultMap) { this.authResultMap = authResultMap; }
+    
+    public String getPgProvider() { return pgProvider; }
+    public void setPgProvider(String pgProvider) { this.pgProvider = pgProvider; }
 }

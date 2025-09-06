@@ -44,4 +44,37 @@ public class PaymentDto {
         paymentDto.setProductName(payment.getProductName());
         return paymentDto;
     }
+    
+    // Lombok이 제대로 작동하지 않을 경우를 위한 수동 setter 메서드들
+    public void setId(Long id) {
+        this.id = id;
+    }
+    
+    public void setOrderId(String orderId) {
+        this.orderId = orderId;
+    }
+    
+    public void setPaymentMethod(String paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+    
+    public void setPaymentAmount(Long paymentAmount) {
+        this.paymentAmount = paymentAmount;
+    }
+    
+    public void setPaymentStatus(String paymentStatus) {
+        this.paymentStatus = paymentStatus;
+    }
+    
+    public void setPaymentAt(LocalDateTime paymentAt) {
+        this.paymentAt = paymentAt;
+    }
+    
+    public void setProductName(String productName) {
+        this.productName = productName;
+    }
+    
+    public void setMemberId(String memberId) {
+        this.memberId = memberId;
+    }
 }

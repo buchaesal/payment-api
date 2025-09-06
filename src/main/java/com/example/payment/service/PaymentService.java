@@ -41,8 +41,6 @@ public class PaymentService {
     
     @Transactional
     public PaymentConfirmResponse processPayment(PaymentConfirmRequest request) {
-        logger.info("=== 복합결제 처리 시작 ===");
-        logger.info("주문번호: {}, 총 결제금액: {}", request.getOrderId(), request.getTotalAmount());
         
         // 결제 항목 목록 준비
         List<PaymentItem> paymentItems = preparePaymentItems(request);

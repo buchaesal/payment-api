@@ -1,10 +1,6 @@
 package com.example.payment.controller;
 
-import com.example.payment.dto.PaymentConfirmRequest;
-import com.example.payment.dto.PaymentConfirmResponse;
-import com.example.payment.dto.PaymentHistoryResponse;
-import com.example.payment.dto.PaymentOrderResponse;
-import com.example.payment.dto.HealthCheckResponse;
+import com.example.payment.dto.*;
 import com.example.payment.service.PaymentService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,21 +23,7 @@ public class PaymentController {
      */
     @PostMapping("/confirm")
     public PaymentConfirmResponse confirmPayment(@RequestBody PaymentConfirmRequest request) {
-        
-        logger.info("=== 결제 승인 요청 받음 ===");
-        logger.info("주문번호: {}, 총 결제금액: {}, 개별결제금액: {}", 
-                   request.getOrderId(), 
-                   request.getTotalAmount(), 
-                   request.getAmount());
-        logger.info("회원ID: {}, 사용적립금: {}", request.getMemberId(), request.getUsePoints());
-        logger.info("결제항목 수: {}", request.getPaymentItems() != null ? request.getPaymentItems().size() : 0);
-        if (request.getPaymentItems() != null) {
-            for (int i = 0; i < request.getPaymentItems().size(); i++) {
-                var item = request.getPaymentItems().get(i);
-                logger.info("결제항목[{}]: {} - {}원", i, item.getPaymentMethod(), item.getAmount());
-            }
-        }
-        
+
         try {
             return paymentService.processPayment(request);
         } catch (Exception e) {

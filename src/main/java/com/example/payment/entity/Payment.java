@@ -69,8 +69,20 @@ public class Payment {
     }
     
     // Lombok이 제대로 작동하지 않을 경우를 위한 수동 getter 메서드들
-    public String getPaymentStatus() {
-        return paymentStatus;
+    public Long getId() {
+        return id;
+    }
+    
+    public String getOrderId() {
+        return orderId;
+    }
+    
+    public Member getMember() {
+        return member;
+    }
+    
+    public PaymentMethod getPaymentMethod() {
+        return paymentMethod;
     }
     
     public Long getPaymentAmount() {
@@ -79,5 +91,21 @@ public class Payment {
     
     public String getProductName() {
         return productName;
+    }
+    
+    public String getPaymentStatus() {
+        return paymentStatus;
+    }
+    
+    public LocalDateTime getPaymentAt() {
+        return paymentAt;
+    }
+    
+    public LocalDateTime getCreatedAt() {
+        return createdAt;
+    }
+    
+    public LocalDateTime getUpdatedAt() {
+        return updatedAt;
     }
 }
