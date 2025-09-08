@@ -60,6 +60,7 @@ public class TossApiClient {
             
             // 인터페이스 이력 생성 (요청 시작)
             history = interfaceHistoryService.createRequestHistory("TOSS", "confirm", tossConfig.getExecuteUrl(), requestData, orderId);
+            final InterfaceHistory finalHistory = history;
             
             logger.info("토스 결제 승인 요청: paymentKey={}, amount={}, orderId={}, historyId={}", paymentKey, amount, orderId, history.getId());
             
@@ -83,11 +84,9 @@ public class TossApiClient {
                     logger.error(errorMessage);
                     
                     // 실패 이력 업데이트
-                    if (history != null) {
-                        String responseCode = determineResponseCode(ex.getStatusCode().value());
-                        interfaceHistoryService.updateFailureHistory(history.getId(), ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage);
-                    }
-                    
+                    String responseCode = determineResponseCode(ex.getStatusCode().value());
+                    interfaceHistoryService.updateFailureHistory(finalHistory.getId(), ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage);
+
                     return new RuntimeException(errorMessage);
                 })
                 .onErrorMap(Exception.class, ex -> {
@@ -95,17 +94,15 @@ public class TossApiClient {
                     logger.error(errorMessage, ex);
                     
                     // 실패 이력 업데이트
-                    if (history != null) {
-                        interfaceHistoryService.updateFailureHistory(history.getId(), null, "9999", null, errorMessage);
-                    }
-                    
+                    interfaceHistoryService.updateFailureHistory(finalHistory.getId(), null, "9999", null, errorMessage);
+
                     return new RuntimeException(errorMessage);
                 })
                 .timeout(Duration.ofSeconds(30)) // 30초 타임아웃
                 .block();
             
             // 성공 이력 업데이트
-            if (history != null && result != null) {
+            if (result != null) {
                 Integer httpStatus = (Integer) result.get("httpStatus");
                 interfaceHistoryService.updateSuccessHistory(history.getId(), result, httpStatus);
             }

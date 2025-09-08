@@ -26,12 +26,6 @@ public class InicisController {
         try {
             InicisPcPayInfo payInfo = InicisFactory.inicisPcPayInfo(oid, price);
             
-            logger.info("이니시스 결제 정보 생성 완료");
-            logger.info("MID: {}", payInfo.getMid());
-            logger.info("Timestamp: {}", payInfo.getTimestamp());
-            logger.info("mKey: {}", payInfo.getMKey());
-            logger.info("Signature: {}", payInfo.getSignature());
-            
             Map<String, Object> response = new HashMap<>();
             response.put("status", "SUCCESS");
             response.put("paymentInfo", payInfo);

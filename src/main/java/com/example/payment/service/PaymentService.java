@@ -4,6 +4,7 @@ import com.example.payment.dto.*;
 import com.example.payment.entity.Member;
 import com.example.payment.entity.Payment;
 import com.example.payment.enums.PaymentMethod;
+import com.example.payment.enums.PaymentType;
 import com.example.payment.factory.PaymentStrategyFactory;
 import com.example.payment.repository.MemberRepository;
 import com.example.payment.repository.PaymentRepository;
@@ -68,10 +69,16 @@ public class PaymentService {
                 paymentResults.add(resultMap);
                 totalProcessedAmount += item.getAmount();
                 
+                // PG Provider 결정 (적립금은 null)
+                String pgProvider = item.getPaymentMethod() == PaymentMethod.POINTS ? 
+                    null : request.getPgProvider();
+                
                 Payment paymentRecord = new Payment(
                     request.getOrderId(),
                     member,
                     item.getPaymentMethod(),
+                    PaymentType.APPROVE,
+                    pgProvider,
                     item.getAmount(),
                     request.getProductName(),
                     result.getTid()
@@ -109,47 +116,91 @@ public class PaymentService {
     }
     
     @Transactional
-    public Map<String, Object> cancelPayment(PaymentConfirmRequest request) {
-        logger.info("=== 복합결제 취소 처리 시작 ===");
-        logger.info("주문번호: {}", request.getOrderId());
+    public Map<String, Object> cancelPayment(Long paymentId) {
+        logger.info("=== 결제 취소 처리 시작 ===");
+        logger.info("결제 ID: {}", paymentId);
         
-        // 결제 항목 목록 준비
-        List<PaymentItem> paymentItems = preparePaymentItems(request);
-        
-        // 각 결제수단별 취소 처리
-        List<Map<String, Object>> cancelResults = new ArrayList<>();
-        
-        for (PaymentItem item : paymentItems) {
-            logger.info("결제수단: {}, 금액: {}원 취소 시작", item.getPaymentMethod(), item.getAmount());
+        try {
+            // Payment ID로 결제 정보 조회
+            Payment originalPayment = paymentRepository.findById(paymentId)
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 결제입니다: " + paymentId));
             
-            // 개별 취소 요청 생성
-            PaymentConfirmRequest itemRequest = createItemRequest(request, item);
+            // 이미 취소된 결제인지 확인
+            if (originalPayment.getPayType() == PaymentType.CANCEL) {
+                throw new IllegalStateException("이미 취소된 결제입니다: " + paymentId);
+            }
+            
+            logger.info("결제수단: {}, PG사: {}, 금액: {}원 취소 시작", 
+                originalPayment.getPaymentMethod(), 
+                originalPayment.getPgProvider(), 
+                originalPayment.getPaymentAmount());
+            
+            // 취소 요청 생성
+            PaymentConfirmRequest cancelRequest = createCancelRequest(originalPayment);
             
             // 전략 선택 및 취소 처리 (에러시 예외 던짐)
-            PaymentStrategy strategy = paymentStrategyFactory.getStrategy(item.getPaymentMethod());
-            PaymentCancelResult result = strategy.cancelPayment(itemRequest);
+            PaymentStrategy strategy = paymentStrategyFactory.getStrategy(originalPayment.getPaymentMethod());
+            PaymentCancelResult result = strategy.cancelPayment(cancelRequest);
             
-            // 결과를 Map으로 변환하여 기존 로직과 호환
-            Map<String, Object> resultMap = new HashMap<>();
-            resultMap.put("paymentMethod", result.getPaymentMethod());
-            resultMap.put("orderId", result.getOrderId());
-            resultMap.put("cancelAmount", result.getCancelAmount());
-            resultMap.put("pgResult", result.getPgResult());
+            // 취소 내역을 PAYMENTS 테이블에 저장 (PAY_TYPE = CANCEL)
+            Payment cancelRecord = new Payment(
+                originalPayment.getOrderId(),
+                originalPayment.getMember(),
+                originalPayment.getPaymentMethod(),
+                PaymentType.CANCEL,
+                originalPayment.getPgProvider(),
+                originalPayment.getPaymentAmount(),
+                originalPayment.getProductName(),
+                null // 취소는 tid 없음
+            );
             
-            cancelResults.add(resultMap);
+            paymentRepository.save(cancelRecord);
             
-            logger.info("결제수단: {} 취소 완료", item.getPaymentMethod());
+            // 전체 결과 구성
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "SUCCESS");
+            response.put("message", "결제 취소가 성공적으로 처리되었습니다.");
+            response.put("paymentId", paymentId);
+            response.put("orderId", originalPayment.getOrderId());
+            response.put("cancelAmount", originalPayment.getPaymentAmount());
+            response.put("paymentMethod", originalPayment.getPaymentMethod());
+            response.put("pgProvider", originalPayment.getPgProvider());
+            response.put("pgResult", result.getPgResult());
+            
+            logger.info("=== 결제 취소 처리 완료 ===");
+            return response;
+            
+        } catch (Exception e) {
+            logger.error("결제 취소 처리 중 오류 발생: {}", e.getMessage());
+            throw new RuntimeException("결제 취소 처리 실패: " + e.getMessage(), e);
+        }
+    }
+    
+    private PaymentConfirmRequest createCancelRequest(Payment originalPayment) {
+        PaymentConfirmRequest request = new PaymentConfirmRequest();
+        
+        // 기본 정보 설정
+        request.setOrderId(originalPayment.getOrderId());
+        request.setAmount(originalPayment.getPaymentAmount());
+        request.setTotalAmount(originalPayment.getPaymentAmount());
+        request.setPaymentMethod(originalPayment.getPaymentMethod());
+        request.setPgProvider(originalPayment.getPgProvider());
+        request.setProductName(originalPayment.getProductName());
+        request.setMemberId(originalPayment.getMember().getMemberId());
+        
+        // tid 설정 (PG 취소에 필요)
+        if (originalPayment.getTid() != null) {
+            Map<String, String> authResultMap = new HashMap<>();
+            authResultMap.put("tid", originalPayment.getTid());
+            request.setAuthResultMap(authResultMap);
         }
         
-        // 전체 결과 구성
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "SUCCESS");
-        response.put("message", "복합결제 취소가 성공적으로 처리되었습니다.");
-        response.put("orderId", request.getOrderId());
-        response.put("cancelResults", cancelResults);
+        // 적립금 사용의 경우 포인트 정보 설정
+        if (originalPayment.getPaymentMethod() == PaymentMethod.POINTS) {
+            request.setUsePoints(originalPayment.getPaymentAmount());
+        }
         
-        logger.info("=== 복합결제 취소 처리 완료 ===");
-        return response;
+        return request;
     }
     
     private List<PaymentItem> preparePaymentItems(PaymentConfirmRequest request) {
@@ -222,11 +273,101 @@ public class PaymentService {
         return itemRequest;
     }
     
-    // Entity 리스트를 DTO 리스트로 변환하는 메서드
+    // Entity 리스트를 DTO 리스트로 변환하는 메서드 (병합 로직 포함)
     private List<PaymentDto> convertToDtoList(List<Payment> paymentList) {
-        return paymentList.stream()
-                .map(PaymentDto::from)
+        return mergePaymentsByOrderIdAndMethod(paymentList).stream()
+                .map(this::convertToDto)
                 .collect(Collectors.toList());
+    }
+    
+    // 동일 주문번호 + 결제수단의 승인/취소 건을 병합하는 메서드
+    private List<Payment> mergePaymentsByOrderIdAndMethod(List<Payment> payments) {
+        // 주문번호 + 결제수단을 키로 그룹화
+        Map<String, List<Payment>> paymentGroups = payments.stream()
+                .collect(Collectors.groupingBy(p -> p.getOrderId() + "_" + p.getPaymentMethod()));
+        
+        List<Payment> mergedPayments = new ArrayList<>();
+        
+        // 각 그룹별로 병합 처리
+        for (List<Payment> paymentGroup : paymentGroups.values()) {
+            // 승인건과 취소건 분류
+            List<Payment> approvePayments = paymentGroup.stream()
+                    .filter(p -> p.getPayType() == null || p.getPayType().name().equals("APPROVE"))
+                    .collect(Collectors.toList());
+            List<Payment> cancelPayments = paymentGroup.stream()
+                    .filter(p -> p.getPayType() != null && p.getPayType().name().equals("CANCEL"))
+                    .collect(Collectors.toList());
+            
+            if (!approvePayments.isEmpty()) {
+                // 승인건을 기준으로 함 (가장 최근 것)
+                Payment basePayment = approvePayments.stream()
+                        .sorted((a, b) -> b.getPaymentAt().compareTo(a.getPaymentAt()))
+                        .findFirst()
+                        .get();
+                
+                // 취소건이 있으면 취소 정보 추가
+                if (!cancelPayments.isEmpty()) {
+                    Payment cancelPayment = cancelPayments.stream()
+                            .sorted((a, b) -> b.getPaymentAt().compareTo(a.getPaymentAt()))
+                            .findFirst()
+                            .get();
+                    
+                    // 가상의 병합된 Payment 객체 생성 (취소 정보 포함)
+                    Payment mergedPayment = createMergedPayment(basePayment, cancelPayment);
+                    mergedPayments.add(mergedPayment);
+                } else {
+                    // 취소건이 없으면 승인 상태 그대로
+                    mergedPayments.add(basePayment);
+                }
+            } else if (!cancelPayments.isEmpty()) {
+                // 승인건 없이 취소건만 있는 경우 (데이터 이상)
+                Payment cancelPayment = cancelPayments.get(0);
+                mergedPayments.add(cancelPayment);
+            }
+        }
+        
+        // 결제일시 기준 내림차순 정렬
+        return mergedPayments.stream()
+                .sorted((a, b) -> b.getPaymentAt().compareTo(a.getPaymentAt()))
+                .collect(Collectors.toList());
+    }
+    
+    // 승인건과 취소건을 병합한 가상의 Payment 객체 생성
+    private Payment createMergedPayment(Payment approvePayment, Payment cancelPayment) {
+        Payment merged = new Payment();
+        
+        // 승인건 정보 복사
+        merged.setId(approvePayment.getId());
+        merged.setOrderId(approvePayment.getOrderId());
+        merged.setMember(approvePayment.getMember());
+        merged.setPaymentMethod(approvePayment.getPaymentMethod());
+        merged.setPayType(approvePayment.getPayType());
+        merged.setPgProvider(approvePayment.getPgProvider());
+        merged.setPaymentAmount(approvePayment.getPaymentAmount());
+        merged.setProductName(approvePayment.getProductName());
+        merged.setTid(approvePayment.getTid());
+        merged.setPaymentAt(approvePayment.getPaymentAt());
+        merged.setCreatedAt(approvePayment.getCreatedAt());
+        merged.setUpdatedAt(approvePayment.getUpdatedAt());
+        
+        // 취소 정보를 별도 필드로 저장 (Payment 엔티티에는 없지만 DTO 변환시 사용)
+        merged.setCancelledAt(cancelPayment.getPaymentAt());
+        
+        return merged;
+    }
+    
+    // Payment를 PaymentDto로 변환 (병합 정보 포함)
+    private PaymentDto convertToDto(Payment payment) {
+        PaymentDto dto = PaymentDto.from(payment);
+        
+        // 취소 정보가 있으면 설정
+        if (payment.getCancelledAt() != null) {
+            dto.setIsCancelled(true);
+            dto.setCancelledAt(payment.getCancelledAt());
+            dto.setPayType("CANCEL"); // 취소 완료 상태로 표시
+        }
+        
+        return dto;
     }
     
     public PaymentHistoryResponse getPaymentHistory(String memberId) {

@@ -86,14 +86,64 @@ public class PointsPaymentStrategy implements PaymentStrategy {
         
         Long cancelAmount = request.getTotalAmount() != null ? request.getTotalAmount() : request.getAmount();
         
-        // TODO: 실제 적립금 결제 취소 로직 구현
-        // - 적립금 환원 처리
-        // - 포인트 히스토리 저장
-        // - 결제 취소 결과 저장
+        // 1. 회원 정보 조회
+        if (request.getMemberId() == null || request.getMemberId().trim().isEmpty()) {
+            throw new IllegalArgumentException("적립금 취소를 위해서는 회원 ID가 필요합니다.");
+        }
         
+        Member member = memberRepository.findByMemberId(request.getMemberId())
+            .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다: " + request.getMemberId()));
+        
+        // 2. 기존 사용 내역 확인 (검증용)
+        PointHistory existingUseHistory = pointHistoryRepository.findByOrderIdAndPointType(
+            request.getOrderId(), PointHistory.PointType.USE)
+            .orElse(null);
+        
+        if (existingUseHistory == null) {
+            logger.warn("취소할 적립금 사용 내역을 찾을 수 없습니다: {}", request.getOrderId());
+            throw new IllegalArgumentException("취소할 적립금 사용 내역을 찾을 수 없습니다: " + request.getOrderId());
+        }
+        
+        // 3. 이미 취소된 내역인지 확인
+        PointHistory existingRefundHistory = pointHistoryRepository.findByOrderIdAndPointType(
+            request.getOrderId(), PointHistory.PointType.REFUND)
+            .orElse(null);
+        
+        if (existingRefundHistory != null) {
+            throw new IllegalStateException("이미 취소된 적립금 사용 내역입니다: " + request.getOrderId());
+        }
+        
+        // 4. 적립금 환원 처리
+        Long originalUsedAmount = existingUseHistory.getPoints();
+        
+        // 요청된 취소 금액과 원래 사용 금액이 일치하는지 확인
+        if (!originalUsedAmount.equals(cancelAmount)) {
+            throw new IllegalArgumentException(
+                String.format("취소 요청 금액(%d원)이 원래 사용 금액(%d원)과 일치하지 않습니다.", 
+                             cancelAmount, originalUsedAmount));
+        }
+        
+        member.addPoints(cancelAmount);
+        memberRepository.save(member);
+        
+        logger.info("적립금 환원 완료 - 환원금액: {}원, 현재적립금: {}원", cancelAmount, member.getPoints());
+        
+        // 5. 포인트 히스토리 저장 (환불 타입으로)
+        PointHistory refundHistory = new PointHistory(
+            member,
+            PointHistory.PointType.REFUND,
+            cancelAmount,
+            request.getOrderId()
+        );
+        pointHistoryRepository.save(refundHistory);
+        
+        logger.info("포인트 히스토리 저장 완료 (환불)");
+        
+        // 6. 취소 결과 데이터 구성
         Map<String, Object> pgResult = new HashMap<>();
         pgResult.put("memberId", request.getMemberId());
         pgResult.put("refundedPoints", cancelAmount);
+        pgResult.put("currentPoints", member.getPoints());
         pgResult.put("canceledAt", java.time.LocalDateTime.now());
         
         logger.info("=== 적립금 결제 취소 처리 완료 ===");

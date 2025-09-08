@@ -1,6 +1,7 @@
 package com.example.payment.entity;
 
 import com.example.payment.enums.PaymentMethod;
+import com.example.payment.enums.PaymentType;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
@@ -28,6 +29,13 @@ public class Payment {
     @Column(name = "payment_method", nullable = false)
     private PaymentMethod paymentMethod;
     
+    @Enumerated(EnumType.STRING)
+    @Column(name = "pay_type", nullable = true)
+    private PaymentType payType;
+    
+    @Column(name = "pg_provider", nullable = true, length = 50)
+    private String pgProvider;
+    
     @Column(name = "payment_amount", nullable = false)
     private Long paymentAmount;
     
@@ -46,15 +54,21 @@ public class Payment {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
     
+    // DTO 변환용 임시 필드 (실제 DB 컬럼이 아님)
+    @jakarta.persistence.Transient
+    private LocalDateTime cancelledAt;
+    
     public Payment() {
         // JPA용 기본 생성자
     }
     
-    public Payment(String orderId, Member member, PaymentMethod paymentMethod,
-                   Long paymentAmount, String productName, String tid) {
+    public Payment(String orderId, Member member, PaymentMethod paymentMethod, PaymentType payType,
+                   String pgProvider, Long paymentAmount, String productName, String tid) {
         this.orderId = orderId;
         this.member = member;
         this.paymentMethod = paymentMethod;
+        this.payType = payType;
+        this.pgProvider = pgProvider;
         this.paymentAmount = paymentAmount;
         this.productName = productName;
         this.tid = tid;

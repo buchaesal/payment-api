@@ -33,17 +33,17 @@ public class PaymentController {
     }
     
     /**
-     * 결제 취소 요청 API
-     * 복합결제 취소 지원
+     * 결제 취소 요청 API (ID 기반)
+     * PAYMENTS 테이블의 특정 row를 취소 처리
      */
-    @PostMapping("/cancel")
-    public Object cancelPayment(@RequestBody PaymentConfirmRequest request) {
+    @PostMapping("/cancel/{paymentId}")
+    public Object cancelPayment(@PathVariable Long paymentId) {
         
         logger.info("=== 결제 취소 요청 받음 ===");
-        logger.info("주문번호: {}", request.getOrderId());
+        logger.info("결제 ID: {}", paymentId);
         
         try {
-            return paymentService.cancelPayment(request);
+            return paymentService.cancelPayment(paymentId);
         } catch (Exception e) {
             logger.error("결제 취소 처리 중 오류 발생: {}", e.getMessage());
             throw new RuntimeException("결제 취소 처리 중 오류가 발생했습니다: " + e.getMessage());

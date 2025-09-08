@@ -10,6 +10,7 @@ toss:
 inicis:
   mid: INIpayTest  # TODO: 실제 운영 상점ID로 교체
   sign-key: SU5JTElURV9UUklQTEVERVNfS0VZRA==  # TODO: 실제 운영 키로 교체
+  api-key: ItEQKi3rY7uvDS8l
   charset: UTF-8
   format: JSON
 

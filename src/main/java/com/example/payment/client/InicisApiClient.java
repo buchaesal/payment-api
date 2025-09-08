@@ -18,6 +18,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @Component
@@ -164,20 +165,21 @@ public class InicisApiClient {
      * 이니시스 응답에서 실제 결과 코드 추출
      */
     private String determineInicisResultCode(Map<String, Object> result) {
-        // 이니시스 응답에서 resultCode 또는 유사한 필드 확인
+        // 이니시스 응답에서 resultCode 확인 (취소 API는 "00"이 성공)
         Object resultCode = result.get("resultCode");
         if (resultCode != null) {
             String code = resultCode.toString();
-            return "0000".equals(code) ? "0000" : code;
+            return "00".equals(code) ? "0000" : code; // "00" -> "0000"으로 변환
         }
         
         // 다른 가능한 필드명들 확인
         Object code = result.get("code");
-        if (code != null && "0000".equals(code.toString())) {
-            return "0000";
+        if (code != null) {
+            String codeStr = code.toString();
+            return "00".equals(codeStr) ? "0000" : codeStr;
         }
         
-        // HTTP 상태가 200이면 성공으로 간주
+        // HTTP 상태가 200이고 resultCode가 없으면 성공으로 간주
         Object httpStatus = result.get("httpStatus");
         if (httpStatus != null && httpStatus.equals(200)) {
             return "0000";
@@ -202,7 +204,7 @@ public class InicisApiClient {
                 .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
             
             // 요청 데이터 구성
-            Map<String, Object> data = new HashMap<>();
+            Map<String, Object> data = new LinkedHashMap<>();
             data.put("tid", tid);
             data.put("msg", "결제취소");
             
@@ -245,7 +247,17 @@ public class InicisApiClient {
                     logger.info("이니시스 취소 API 응답: {}", responseBody);
                     Map<String, Object> parsedResult = parseResponse(responseBody);
                     parsedResult.put("httpStatus", 200);
-                    logger.info("=== 이니시스 취소 API 호출 성공 ===");
+                    
+                    // 이니시스 취소 응답에서 resultCode 검증
+                    String resultCode = (String) parsedResult.get("resultCode");
+                    if (resultCode != null && !"00".equals(resultCode)) {
+                        String resultMsg = (String) parsedResult.get("resultMsg");
+                        String errorMessage = String.format("이니시스 취소 실패 - ResultCode: %s, Message: %s", resultCode, resultMsg);
+                        logger.error(errorMessage);
+                        throw new RuntimeException(errorMessage);
+                    }
+                    
+                    logger.info("=== 이니시스 취소 API 호출 성공 (resultCode: {}) ===", resultCode);
                     return parsedResult;
                 })
                 .onErrorMap(WebClientResponseException.class, ex -> {

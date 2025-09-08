@@ -71,13 +71,7 @@ public class InicisPaymentGatewayStrategy implements PaymentGatewayStrategy {
         
         logger.info("취소 요청 주문 ID: {}", orderId);
         
-        // DB에서 해당 주문의 TID 조회
-        Payment payment = paymentRepository.findTidByOrderId(orderId);
-        if (payment == null) {
-            throw new IllegalArgumentException("취소 가능한 결제를 찾을 수 없습니다. 주문 ID: " + orderId);
-        }
-        
-        String tid = payment.getTid();
+        String tid = request.getAuthResultMap().get("tid");
         if (tid == null || tid.trim().isEmpty()) {
             throw new IllegalArgumentException("취소에 필요한 TID가 없습니다. 주문 ID: " + orderId);
         }
