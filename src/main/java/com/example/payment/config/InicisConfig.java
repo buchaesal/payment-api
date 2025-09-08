@@ -1,46 +1,44 @@
 package com.example.payment.config;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+@Getter
+@Setter
 @Component
 @ConfigurationProperties(prefix = "inicis")
 public class InicisConfig {
     
-    private String mid = "INIpayTest";  // 테스트용 상점아이디
-    private String signKey = "SU5JTElURV9UUklQTEVERVNfS0VZRA==";  // 테스트용 signKey
-    private String charset = "UTF-8";
-    private String format = "JSON";
+    /**
+     * 이니시스 상점 아이디
+     * - 테스트: INIpayTest
+     * - 운영: 실제 상점 ID로 교체 필요
+     */
+    private String mid;
     
-    public String getMid() {
-        return mid;
-    }
+    /**
+     * 이니시스 서명 키 (Base64 인코딩)
+     * - 테스트: SU5JTElURV9UUklQTEVERVNfS0VZRA==
+     * - 운영: 실제 서명 키로 교체 필요
+     */
+    private String signKey;
     
-    public void setMid(String mid) {
-        this.mid = mid;
-    }
+    /**
+     * 이니시스 API 키 (취소 API용)
+     * - 테스트: ItEQKi3rY7uvDS8l
+     * - 운영: 실제 API 키로 교체 필요
+     */
+    private String apiKey;
     
-    public String getSignKey() {
-        return signKey;
-    }
+    /**
+     * 문자셋 (기본: UTF-8)
+     */
+    private String charset;
     
-    public void setSignKey(String signKey) {
-        this.signKey = signKey;
-    }
-    
-    public String getCharset() {
-        return charset;
-    }
-    
-    public void setCharset(String charset) {
-        this.charset = charset;
-    }
-    
-    public String getFormat() {
-        return format;
-    }
-    
-    public void setFormat(String format) {
-        this.format = format;
-    }
+    /**
+     * 응답 포맷 (기본: JSON)
+     */
+    private String format;
 }

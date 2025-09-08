@@ -1,0 +1,19 @@
+spring:
+  profiles:
+    active: prod
+
+# Production 환경 결제 설정 (테스트 환경 - 실제 운영시에는 실제 키로 교체 필요)
+toss:
+  api-key: test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq  # TODO: 실제 운영 키로 교체
+  execute-url: https://pay.toss.im/api/v2/execute
+
+inicis:
+  mid: INIpayTest  # TODO: 실제 운영 상점ID로 교체
+  sign-key: SU5JTElURV9UUklQTEVERVNfS0VZRA==  # TODO: 실제 운영 키로 교체
+  charset: UTF-8
+  format: JSON
+
+logging:
+  level:
+    com.example.payment: ERROR
+    root: WARN

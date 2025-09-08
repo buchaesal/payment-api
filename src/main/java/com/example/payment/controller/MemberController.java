@@ -1,13 +1,6 @@
 package com.example.payment.controller;
 
-import com.example.payment.dto.MemberLoginRequest;
-import com.example.payment.dto.MemberSignupRequest;
-import com.example.payment.dto.MemberResponse;
-import com.example.payment.dto.MemberSignupResponse;
-import com.example.payment.dto.MemberLoginResponse;
-import com.example.payment.dto.MemberInfoResponse;
-import com.example.payment.dto.PointHistoryListResponse;
-import com.example.payment.dto.PointHistoryResponse;
+import com.example.payment.dto.*;
 import com.example.payment.service.MemberService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +19,7 @@ public class MemberController {
     @Autowired
     private MemberService memberService;
     
-    @PostMapping("/signup")
+    @PostMapping(value = "/signup", produces = "application/json")
     public MemberSignupResponse signup(@RequestBody MemberSignupRequest request) {
         logger.info("=== 회원가입 요청 ===");
         logger.info("회원 ID: {}", request.getMemberId());
@@ -46,47 +39,25 @@ public class MemberController {
             
         } catch (IllegalArgumentException e) {
             logger.error("회원가입 실패: {}", e.getMessage());
-            throw new RuntimeException(e.getMessage());
-        }
-    }
-    
-    @PostMapping("/login")
-    public MemberLoginResponse login(@RequestBody MemberLoginRequest request) {
-        logger.info("=== 로그인 요청 ===");
-        logger.info("회원 ID: {}", request.getMemberId());
-        
-        try {
-            MemberResponse memberResponse = memberService.login(request.getMemberId());
-            
-            logger.info("로그인 성공: {} (적립금: {}원)", memberResponse.getMemberId(), memberResponse.getPoints());
-            return new MemberLoginResponse(
-                "SUCCESS",
-                "로그인 성공",
-                memberResponse
+            return new MemberSignupResponse(
+                "FAILURE",
+                e.getMessage(),
+                null
             );
-            
-        } catch (IllegalArgumentException e) {
-            logger.error("로그인 실패: {}", e.getMessage());
-            throw new RuntimeException(e.getMessage());
         }
     }
     
-    @GetMapping("/{memberId}")
-    public MemberInfoResponse getMember(@PathVariable String memberId) {
-        logger.info("=== 회원 정보 조회 요청 ===");
-        logger.info("회원 ID: {}", memberId);
-        
-        try {
-            MemberResponse memberResponse = memberService.getMemberById(memberId);
-            
-            return new MemberInfoResponse("SUCCESS", memberResponse);
-            
-        } catch (IllegalArgumentException e) {
-            throw new RuntimeException(e.getMessage());
-        }
+    @PostMapping(value = "/login")
+    public MemberResponse login(@RequestBody MemberLoginRequest request) {
+        return memberService.login(request.getMemberId());
     }
     
-    @GetMapping("/{memberId}/points/history")
+    @GetMapping(value = "/{id}")
+    public MemberResponse getMember(@PathVariable String id) {
+        return memberService.getMemberById(id);
+    }
+    
+    @GetMapping(value = "/{memberId}/points/history", produces = "application/json")
     public PointHistoryListResponse getPointHistory(@PathVariable String memberId) {
         logger.info("=== 적립금 내역 조회 요청 ===");
         logger.info("회원 ID: {}", memberId);
@@ -97,7 +68,8 @@ public class MemberController {
             return new PointHistoryListResponse("SUCCESS", pointHistories);
             
         } catch (IllegalArgumentException e) {
-            throw new RuntimeException(e.getMessage());
+            logger.error("적립금 내역 조회 실패: {}", e.getMessage());
+            return new PointHistoryListResponse("FAILURE", null);
         }
     }
 }

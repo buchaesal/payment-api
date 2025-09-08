@@ -1,8 +1,11 @@
 package com.example.payment.entity;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+
 import java.time.LocalDateTime;
 
+@Getter
 @Entity
 @Table(name = "members")
 public class Member {
@@ -61,18 +64,4 @@ public class Member {
         this.points -= points;
         this.updatedAt = LocalDateTime.now();
     }
-    
-    public Long getId() { return id; }
-    public String getMemberId() { return memberId; }
-    public String getName() { return name; }
-    public String getEmail() { return email; }
-    public String getPhone() { return phone; }
-    public Long getPoints() { return points; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public LocalDateTime getUpdatedAt() { return updatedAt; }
-    
-    public void setMemberId(String memberId) { this.memberId = memberId; }
-    public void setName(String name) { this.name = name; }
-    public void setEmail(String email) { this.email = email; }
-    public void setPhone(String phone) { this.phone = phone; }
 }

@@ -18,7 +18,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     
     List<Payment> findByMemberOrderByPaymentAtDesc(Member member);
     
-    @Query("SELECT p FROM Payment p WHERE p.orderId = :orderId AND p.paymentStatus = :status")
-    List<Payment> findByOrderIdAndStatus(@Param("orderId") String orderId, 
-                                        @Param("status") String status);
+    /**
+     * 주문 ID로 TID가 있는 결제 조회 (취소용)
+     * payments 테이블의 모든 데이터는 성공한 결제이므로 status 체크 불필요
+     */
+    @Query("SELECT p FROM Payment p WHERE p.orderId = :orderId AND p.tid IS NOT NULL")
+    Payment findTidByOrderId(@Param("orderId") String orderId);
 }

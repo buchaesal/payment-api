@@ -1,11 +1,6 @@
 package com.example.payment.service;
 
-import com.example.payment.dto.PaymentConfirmRequest;
-import com.example.payment.dto.PaymentConfirmResponse;
-import com.example.payment.dto.PaymentHistoryResponse;
-import com.example.payment.dto.PaymentOrderResponse;
-import com.example.payment.dto.PaymentItem;
-import com.example.payment.dto.PaymentDto;
+import com.example.payment.dto.*;
 import com.example.payment.entity.Member;
 import com.example.payment.entity.Payment;
 import com.example.payment.enums.PaymentMethod;
@@ -13,9 +8,9 @@ import com.example.payment.factory.PaymentStrategyFactory;
 import com.example.payment.repository.MemberRepository;
 import com.example.payment.repository.PaymentRepository;
 import com.example.payment.strategy.PaymentStrategy;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,18 +21,14 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class PaymentService {
     
     private static final Logger logger = LoggerFactory.getLogger(PaymentService.class);
-    
-    @Autowired
-    private PaymentStrategyFactory paymentStrategyFactory;
-    
-    @Autowired
-    private PaymentRepository paymentRepository;
-    
-    @Autowired
-    private MemberRepository memberRepository;
+
+    private final PaymentStrategyFactory paymentStrategyFactory;
+    private final PaymentRepository paymentRepository;
+    private final MemberRepository memberRepository;
     
     @Transactional
     public PaymentConfirmResponse processPayment(PaymentConfirmRequest request) {
@@ -54,25 +45,28 @@ public class PaymentService {
         Long totalProcessedAmount = 0L;
         
         try {
+            // Member 엔티티 조회
+            Member member = memberRepository.findByMemberId(request.getMemberId())
+                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다: " + request.getMemberId()));
+
             for (PaymentItem item : paymentItems) {
-                logger.info("결제수단: {}, 금액: {}원 처리 시작", item.getPaymentMethod(), item.getAmount());
                 
                 // 개별 결제 요청 생성
                 PaymentConfirmRequest itemRequest = createItemRequest(request, item);
                 
-                // 전략 선택 및 결제 처리
+                // 전략 선택 및 결제 처리 (에러시 예외 던짐)
                 PaymentStrategy strategy = paymentStrategyFactory.getStrategy(item.getPaymentMethod());
-                Map<String, Object> result = strategy.processPayment(itemRequest);
+                PaymentProcessResult result = strategy.processPayment(itemRequest);
                 
-                paymentResults.add(result);
+                // 결과를 Map으로 변환하여 기존 로직과 호환
+                Map<String, Object> resultMap = new HashMap<>();
+                resultMap.put("paymentMethod", result.getPaymentMethod());
+                resultMap.put("amount", result.getAmount());
+                resultMap.put("tid", result.getTid());
+                resultMap.put("pgResult", result.getPgResult());
+                
+                paymentResults.add(resultMap);
                 totalProcessedAmount += item.getAmount();
-                
-                // 결제 성공시에만 결제 기본 정보 준비
-                String paymentStatus = "SUCCESS".equals(result.get("status")) ? "SUCCESS" : "FAILED";
-                
-                // Member 엔티티 조회
-                Member member = memberRepository.findByMemberId(request.getMemberId())
-                    .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 회원입니다: " + request.getMemberId()));
                 
                 Payment paymentRecord = new Payment(
                     request.getOrderId(),
@@ -80,24 +74,23 @@ public class PaymentService {
                     item.getPaymentMethod(),
                     item.getAmount(),
                     request.getProductName(),
-                    paymentStatus
+                    result.getTid()
                 );
+                
+                // 결제 응답에서 tid 설정
+                if (result.getTid() != null) {
+                    paymentRecord.setTid(result.getTid());
+                    logger.info("결제 TID 저장: {}", result.getTid());
+                }
+                
                 paymentRecords.add(paymentRecord);
                 
                 logger.info("결제수단: {} 처리 완료", item.getPaymentMethod());
-                
-                // 개별 결제가 실패한 경우 전체 롤백
-                if (!"SUCCESS".equals(paymentStatus)) {
-                    throw new RuntimeException("결제 실패: " + result.get("message"));
-                }
             }
             
             // 모든 개별 결제가 성공한 경우에만 결제 기본 정보 일괄 저장
-            logger.info("결제 기본 정보 일괄 저장 시작 - {} 건", paymentRecords.size());
             paymentRepository.saveAll(paymentRecords);
-            logger.info("결제 기본 정보 저장 완료");
-            
-            logger.info("=== 복합결제 처리 완료 ===");
+
             return new PaymentConfirmResponse(
                 "SUCCESS",
                 "복합결제가 성공적으로 처리되었습니다.",
@@ -132,11 +125,18 @@ public class PaymentService {
             // 개별 취소 요청 생성
             PaymentConfirmRequest itemRequest = createItemRequest(request, item);
             
-            // 전략 선택 및 취소 처리
+            // 전략 선택 및 취소 처리 (에러시 예외 던짐)
             PaymentStrategy strategy = paymentStrategyFactory.getStrategy(item.getPaymentMethod());
-            Map<String, Object> result = strategy.cancelPayment(itemRequest);
+            PaymentCancelResult result = strategy.cancelPayment(itemRequest);
             
-            cancelResults.add(result);
+            // 결과를 Map으로 변환하여 기존 로직과 호환
+            Map<String, Object> resultMap = new HashMap<>();
+            resultMap.put("paymentMethod", result.getPaymentMethod());
+            resultMap.put("orderId", result.getOrderId());
+            resultMap.put("cancelAmount", result.getCancelAmount());
+            resultMap.put("pgResult", result.getPgResult());
+            
+            cancelResults.add(resultMap);
             
             logger.info("결제수단: {} 취소 완료", item.getPaymentMethod());
         }
@@ -167,7 +167,7 @@ public class PaymentService {
         }
         
         // 카드 결제 (전체금액 - 적립금)
-        Long cardAmount = (request.getAmount() != null ? request.getAmount() : request.getTotalAmount())
+        long cardAmount = (request.getAmount() != null ? request.getAmount() : request.getTotalAmount())
                          - (request.getUsePoints() != null ? request.getUsePoints() : 0L);
         
         if (cardAmount > 0) {
@@ -212,6 +212,7 @@ public class PaymentService {
         itemRequest.setQuantity(originalRequest.getQuantity());
         itemRequest.setMemberId(originalRequest.getMemberId());
         itemRequest.setAuthResultMap(originalRequest.getAuthResultMap());
+        itemRequest.setPgProvider(originalRequest.getPgProvider());
         
         // 적립금 사용의 경우 포인트 정보 설정
         if (item.getPaymentMethod() == PaymentMethod.POINTS) {
@@ -221,24 +222,10 @@ public class PaymentService {
         return itemRequest;
     }
     
-    // Entity를 DTO로 변환하는 메서드
-    private PaymentDto convertToDto(Payment payment) {
-        return new PaymentDto(
-            payment.getId(),
-            payment.getOrderId(),
-            payment.getPaymentMethod() != null ? payment.getPaymentMethod().name() : null,
-            payment.getPaymentAmount(),
-            payment.getPaymentStatus(),
-            payment.getPaymentAt(),
-            payment.getProductName(),
-            payment.getMember() != null ? payment.getMember().getMemberId() : null
-        );
-    }
-    
     // Entity 리스트를 DTO 리스트로 변환하는 메서드
     private List<PaymentDto> convertToDtoList(List<Payment> paymentList) {
         return paymentList.stream()
-                .map(this::convertToDto)
+                .map(PaymentDto::from)
                 .collect(Collectors.toList());
     }
     
@@ -281,10 +268,12 @@ public class PaymentService {
         
         logger.info("조회된 결제내역 수: {}건", paymentList.size());
         
-        // 총 결제금액 계산
+        // Entity를 DTO로 변환
+        List<PaymentDto> paymentDtoList = convertToDtoList(paymentList);
+        
+        // 총 결제금액 계산 (payments 테이블의 모든 데이터는 성공한 결제)
         Long totalAmount = paymentList.stream()
-            .filter(payment -> "SUCCESS".equals(payment.getPaymentStatus()))
-            .mapToLong(payment -> payment.getPaymentAmount())
+            .mapToLong(Payment::getPaymentAmount)
             .sum();
         
         // 상품명은 첫 번째 결제 기록에서 가져옴 (모든 결제가 같은 상품이므로)
@@ -298,7 +287,7 @@ public class PaymentService {
             productName,
             totalAmount,
             paymentList.size(),
-            paymentList
+            paymentDtoList  // DTO 리스트 사용
         );
     }
 }

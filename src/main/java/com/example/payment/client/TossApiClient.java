@@ -1,19 +1,20 @@
 package com.example.payment.client;
 
 import com.example.payment.config.TossConfig;
+import com.example.payment.entity.InterfaceHistory;
+import com.example.payment.service.InterfaceHistoryService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,87 +22,135 @@ import java.util.Map;
 public class TossApiClient {
     
     private static final Logger logger = LoggerFactory.getLogger(TossApiClient.class);
-    
-    @Autowired
-    private TossConfig tossConfig;
-    
+
+    private final TossConfig tossConfig;
+    private final InterfaceHistoryService interfaceHistoryService;
+    private final WebClient webClient;
     private final ObjectMapper objectMapper = new ObjectMapper();
     
+    public TossApiClient(TossConfig tossConfig, InterfaceHistoryService interfaceHistoryService) {
+        this.tossConfig = tossConfig;
+        this.interfaceHistoryService = interfaceHistoryService;
+        this.webClient = WebClient.builder()
+            .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(1024 * 1024)) // 1MB
+            .build();
+    }
+    
     /**
-     * 토스 결제 승인 API 호출
-     * @param payToken 결제 고유 번호 (인증 응답의 authToken)
+     * 토스 결제 승인 API 호출 (v1 API) - 인터페이스 이력 로깅 적용
+     * @param paymentKey 결제 고유 키 (PayToken)
+     * @param amount 결제 금액
+     * @param orderId 주문 ID
      * @return 승인 결과
+     * @throws RuntimeException API 호출 실패 시
      */
-    public Map<String, Object> requestPaymentApproval(String payToken) {
-        logger.info("=== 토스 승인 API 호출 시작 ===");
-        logger.info("실행 URL: {}", tossConfig.getExecuteUrl());
-        logger.info("payToken: {}", payToken);
+    public Map<String, Object> requestPaymentApproval(String paymentKey, Long amount, String orderId) {
+        // 인터페이스 이력 시작
+        InterfaceHistory history = null;
         
         try {
-            // 요청 데이터 구성 (JSON 형식)
-            Map<String, String> requestData = new HashMap<>();
-            requestData.put("apiKey", tossConfig.getApiKey());
-            requestData.put("payToken", payToken);
+            // Base64 인증 헤더 생성 (apiKey + ':' 를 Base64로 인코딩)
+            String authHeader = createAuthorizationHeader();
             
-            String jsonRequestData = objectMapper.writeValueAsString(requestData);
-            logger.info("요청 JSON 데이터: {}", jsonRequestData);
+            // 요청 데이터 구성 (v1 API JSON 형식)
+            Map<String, Object> requestData = new HashMap<>();
+            requestData.put("paymentKey", paymentKey);
+            requestData.put("amount", amount);
+            requestData.put("orderId", orderId);
             
-            // HTTP 요청 실행
-            URL url = new URL(tossConfig.getExecuteUrl());
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json");
-            connection.setRequestProperty("Content-Length", String.valueOf(jsonRequestData.getBytes(StandardCharsets.UTF_8).length));
-            connection.setDoOutput(true);
+            // 인터페이스 이력 생성 (요청 시작)
+            history = interfaceHistoryService.createRequestHistory("TOSS", "confirm", tossConfig.getExecuteUrl(), requestData, orderId);
             
-            // 요청 본문 전송
-            try (OutputStream os = connection.getOutputStream()) {
-                os.write(jsonRequestData.getBytes(StandardCharsets.UTF_8));
-                os.flush();
-            }
+            logger.info("토스 결제 승인 요청: paymentKey={}, amount={}, orderId={}, historyId={}", paymentKey, amount, orderId, history.getId());
             
-            // 응답 읽기
-            int responseCode = connection.getResponseCode();
-            logger.info("HTTP 응답 코드: {}", responseCode);
+            // WebClient를 사용한 비동기 HTTP 요청 (동기로 변환)
+            Map<String, Object> result = webClient
+                .post()
+                .uri(tossConfig.getExecuteUrl())
+                .header("Authorization", authHeader)
+                .header("Content-Type", "application/json")
+                .bodyValue(requestData)
+                .retrieve()
+                .bodyToMono(String.class)
+                .map(responseBody -> {
+                    Map<String, Object> parsedResult = parseResponse(responseBody);
+                    parsedResult.put("httpStatus", 200);
+                    logger.info("토스 결제 승인 성공: {}", parsedResult);
+                    return parsedResult;
+                })
+                .onErrorMap(WebClientResponseException.class, ex -> {
+                    String errorMessage = "토스 결제 승인 API 호출 실패: HTTP " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString();
+                    logger.error(errorMessage);
+                    
+                    // 실패 이력 업데이트
+                    if (history != null) {
+                        String responseCode = determineResponseCode(ex.getStatusCode().value());
+                        interfaceHistoryService.updateFailureHistory(history.getId(), ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage);
+                    }
+                    
+                    return new RuntimeException(errorMessage);
+                })
+                .onErrorMap(Exception.class, ex -> {
+                    String errorMessage = "토스 결제 승인 API 호출 중 오류 발생: " + ex.getMessage();
+                    logger.error(errorMessage, ex);
+                    
+                    // 실패 이력 업데이트
+                    if (history != null) {
+                        interfaceHistoryService.updateFailureHistory(history.getId(), null, "9999", null, errorMessage);
+                    }
+                    
+                    return new RuntimeException(errorMessage);
+                })
+                .timeout(Duration.ofSeconds(30)) // 30초 타임아웃
+                .block();
             
-            StringBuilder response = new StringBuilder();
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(
-                    responseCode >= 200 && responseCode < 300 
-                        ? connection.getInputStream() 
-                        : connection.getErrorStream(), 
-                    StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = br.readLine()) != null) {
-                    response.append(line);
-                }
-            }
-            
-            String responseBody = response.toString();
-            logger.info("토스 API 응답: {}", responseBody);
-            
-            // JSON 응답 파싱
-            Map<String, Object> result;
-            if (responseCode >= 200 && responseCode < 300) {
-                result = parseResponse(responseBody);
-                result.put("httpStatus", responseCode);
-                logger.info("=== 토스 승인 API 호출 성공 ===");
-            } else {
-                result = new HashMap<>();
-                result.put("status", "FAILED");
-                result.put("message", "HTTP 오류: " + responseCode + " - " + responseBody);
-                result.put("httpStatus", responseCode);
-                logger.error("토스 API 호출 실패: HTTP {}", responseCode);
+            // 성공 이력 업데이트
+            if (history != null && result != null) {
+                Integer httpStatus = (Integer) result.get("httpStatus");
+                interfaceHistoryService.updateSuccessHistory(history.getId(), result, httpStatus);
             }
             
             return result;
             
+        } catch (RuntimeException e) {
+            // onErrorMap에서 생성된 RuntimeException을 다시 던짐
+            throw e;
         } catch (Exception e) {
-            logger.error("토스 API 호출 중 오류 발생: {}", e.getMessage(), e);
-            Map<String, Object> errorResult = new HashMap<>();
-            errorResult.put("status", "FAILED");
-            errorResult.put("message", "API 호출 오류: " + e.getMessage());
-            return errorResult;
+            String errorMessage = "토스 결제 승인 API 호출 중 예상치 못한 오류 발생: " + e.getMessage();
+            logger.error(errorMessage, e);
+            
+            // 실패 이력 업데이트
+            if (history != null) {
+                interfaceHistoryService.updateFailureHistory(history.getId(), null, "9999", null, errorMessage);
+            }
+            
+            throw new RuntimeException(errorMessage);
         }
+    }
+    
+    /**
+     * HTTP 상태 코드에 따른 응답 코드 결정
+     */
+    private String determineResponseCode(int httpStatus) {
+        if (httpStatus == 200) {
+            return "0000";
+        } else if (httpStatus >= 400 && httpStatus < 500) {
+            return "4000"; // 클라이언트 오류
+        } else if (httpStatus >= 500) {
+            return "5000"; // 서버 오류
+        } else {
+            return "9999"; // 기타 오류
+        }
+    }
+    
+    /**
+     * Authorization 헤더 생성 (Basic 인증)
+     * apiKey에 콜론을 붙인 후 Base64로 인코딩
+     */
+    private String createAuthorizationHeader() {
+        String credentials = tossConfig.getApiKey() + ":";
+        String encodedCredentials = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+        return "Basic " + encodedCredentials;
     }
     
     /**

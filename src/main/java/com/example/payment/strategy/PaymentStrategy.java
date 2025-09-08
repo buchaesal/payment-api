@@ -1,11 +1,12 @@
 package com.example.payment.strategy;
 
 import com.example.payment.dto.PaymentConfirmRequest;
-import java.util.Map;
+import com.example.payment.dto.PaymentProcessResult;
+import com.example.payment.dto.PaymentCancelResult;
 
 public interface PaymentStrategy {
     
-    Map<String, Object> processPayment(PaymentConfirmRequest request);
+    PaymentProcessResult processPayment(PaymentConfirmRequest request);
     
-    Map<String, Object> cancelPayment(PaymentConfirmRequest request);
+    PaymentCancelResult cancelPayment(PaymentConfirmRequest request);
 }

@@ -34,8 +34,8 @@ public class Payment {
     @Column(name = "product_name", nullable = true, length = 255)
     private String productName;
     
-    @Column(name = "payment_status", nullable = false, length = 20)
-    private String paymentStatus; // SUCCESS, FAILED, CANCELLED
+    @Column(name = "tid", nullable = true, length = 100)
+    private String tid; // 결제 거래 ID (PG사에서 발급, 취소 시 필요)
     
     @Column(name = "payment_at", nullable = false)
     private LocalDateTime paymentAt;
@@ -50,14 +50,14 @@ public class Payment {
         // JPA용 기본 생성자
     }
     
-    public Payment(String orderId, Member member, PaymentMethod paymentMethod, 
-                   Long paymentAmount, String productName, String paymentStatus) {
+    public Payment(String orderId, Member member, PaymentMethod paymentMethod,
+                   Long paymentAmount, String productName, String tid) {
         this.orderId = orderId;
         this.member = member;
         this.paymentMethod = paymentMethod;
         this.paymentAmount = paymentAmount;
         this.productName = productName;
-        this.paymentStatus = paymentStatus;
+        this.tid = tid;
         this.paymentAt = LocalDateTime.now();
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
@@ -66,46 +66,5 @@ public class Payment {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
-    }
-    
-    // Lombok이 제대로 작동하지 않을 경우를 위한 수동 getter 메서드들
-    public Long getId() {
-        return id;
-    }
-    
-    public String getOrderId() {
-        return orderId;
-    }
-    
-    public Member getMember() {
-        return member;
-    }
-    
-    public PaymentMethod getPaymentMethod() {
-        return paymentMethod;
-    }
-    
-    public Long getPaymentAmount() {
-        return paymentAmount;
-    }
-    
-    public String getProductName() {
-        return productName;
-    }
-    
-    public String getPaymentStatus() {
-        return paymentStatus;
-    }
-    
-    public LocalDateTime getPaymentAt() {
-        return paymentAt;
-    }
-    
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-    
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
     }
 }

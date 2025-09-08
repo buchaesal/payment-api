@@ -37,13 +37,13 @@ public class PaymentController {
      * 복합결제 취소 지원
      */
     @PostMapping("/cancel")
-    public void cancelPayment(@RequestBody PaymentConfirmRequest request) {
+    public Object cancelPayment(@RequestBody PaymentConfirmRequest request) {
         
         logger.info("=== 결제 취소 요청 받음 ===");
         logger.info("주문번호: {}", request.getOrderId());
         
         try {
-            paymentService.cancelPayment(request);
+            return paymentService.cancelPayment(request);
         } catch (Exception e) {
             logger.error("결제 취소 처리 중 오류 발생: {}", e.getMessage());
             throw new RuntimeException("결제 취소 처리 중 오류가 발생했습니다: " + e.getMessage());

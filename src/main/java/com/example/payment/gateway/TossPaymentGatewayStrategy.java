@@ -20,88 +20,43 @@ public class TossPaymentGatewayStrategy implements PaymentGatewayStrategy {
     
     @Override
     public Map<String, Object> processApproval(PaymentConfirmRequest request) {
-        logger.info("=== 토스페이먼츠 결제 승인 시작 ===");
         
         Map<String, String> authResultMap = request.getAuthResultMap();
-        String payToken = authResultMap.get("paymentKey"); // 인증 응답의 paymentKey가 payToken
-        String orderId = authResultMap.get("orderId");
-        String amount = authResultMap.get("amount");
+        String paymentKey = authResultMap.get("paymentKey"); // 인증 응답의 paymentKey
+        String orderId = request.getOrderId(); // 주문 ID
         
-        logger.info("토스 승인 파라미터 - PayToken: {}, OrderId: {}, Amount: {}", payToken, orderId, amount);
-        
-        try {
-            if (payToken == null) {
-                logger.error("토스 승인에 필요한 payToken이 없습니다");
-                Map<String, Object> errorResponse = new HashMap<>();
-                errorResponse.put("status", "FAILED");
-                errorResponse.put("message", "토스 승인에 필요한 payToken이 없습니다");
-                return errorResponse;
-            }
-            
-            // 실제 토스 API 호출
-            Map<String, Object> apiResult = tossApiClient.requestPaymentApproval(payToken);
-            
-            // API 호출 결과 처리
-            Map<String, Object> response = new HashMap<>();
-            if ("SUCCESS".equals(apiResult.get("status")) || 
-                (apiResult.get("httpStatus") != null && (Integer) apiResult.get("httpStatus") == 200)) {
-                
-                response.put("status", "SUCCESS");
-                response.put("message", "토스페이먼츠 결제 승인 완료");
-                response.put("payToken", payToken);
-                response.put("orderId", orderId);
-                response.put("amount", amount);
-                response.put("approvedAt", java.time.LocalDateTime.now().toString());
-                response.put("method", "CARD");
-                response.put("pgProvider", "TOSS");
-                response.put("apiResult", apiResult); // 전체 API 응답 포함
-                
-                logger.info("토스 승인 성공: {}", apiResult);
-            } else {
-                response.put("status", "FAILED");
-                response.put("message", "토스 승인 실패: " + apiResult.get("message"));
-                response.put("payToken", payToken);
-                response.put("orderId", orderId);
-                response.put("amount", amount);
-                response.put("pgProvider", "TOSS");
-                response.put("apiResult", apiResult); // 실패 응답도 포함
-                
-                logger.error("토스 승인 실패: {}", apiResult);
-            }
-            
-            logger.info("=== 토스페이먼츠 결제 승인 완료 ===");
-            return response;
-            
-        } catch (Exception e) {
-            logger.error("토스페이먼츠 승인 중 오류 발생: {}", e.getMessage());
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("status", "FAILED");
-            errorResponse.put("message", "토스페이먼츠 승인 실패: " + e.getMessage());
-            return errorResponse;
+        if (paymentKey == null) {
+            throw new IllegalArgumentException("토스 승인에 필요한 paymentKey가 없습니다");
         }
+        
+        if (orderId == null) {
+            throw new IllegalArgumentException("토스 승인에 필요한 orderId가 없습니다");
+        }
+
+        Long cardAmount = request.getAmount();
+        if (cardAmount <= 0) {
+            throw new IllegalArgumentException("토스 승인에 필요한 카드 결제 금액이 없습니다");
+        }
+        
+        logger.info("토스 결제 승인 요청: paymentKey={}, amount={}, orderId={}", paymentKey, cardAmount, orderId);
+
+        // v1 API로 승인 요청 (paymentKey, amount, orderId)
+        return tossApiClient.requestPaymentApproval(paymentKey, cardAmount, orderId);
     }
     
     @Override
     public Map<String, Object> processCancellation(PaymentConfirmRequest request) {
         logger.info("=== 토스페이먼츠 결제 취소 시작 ===");
         
-        try {
-            // TODO: 실제 토스페이먼츠 취소 API 호출 구현
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "SUCCESS");
-            response.put("message", "토스페이먼츠 결제 취소 완료");
-            response.put("canceledAt", java.time.LocalDateTime.now().toString());
-            
-            logger.info("=== 토스페이먼츠 결제 취소 완료 ===");
-            return response;
-            
-        } catch (Exception e) {
-            logger.error("토스페이먼츠 취소 중 오류 발생: {}", e.getMessage());
-            Map<String, Object> errorResponse = new HashMap<>();
-            errorResponse.put("status", "FAILED");
-            errorResponse.put("message", "토스페이먼츠 취소 실패: " + e.getMessage());
-            return errorResponse;
-        }
+        // TODO: 실제 토스페이먼츠 취소 API 호출 구현
+        // 현재는 임시 응답 반환
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "SUCCESS");
+        response.put("message", "토스페이먼츠 결제 취소 완료");
+        response.put("canceledAt", java.time.LocalDateTime.now().toString());
+        
+        logger.info("=== 토스페이먼츠 결제 취소 완료 ===");
+        return response;
     }
     
     @Override

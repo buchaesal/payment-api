@@ -1,6 +1,5 @@
 package com.example.payment.dto;
 
-import com.example.payment.entity.Payment;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -19,13 +18,13 @@ public class PaymentOrderResponse {
     
     public PaymentOrderResponse(String status, String message, String orderId, 
                                 String productName, Long totalAmount, 
-                                Integer paymentCount, List<Payment> paymentList) {
+                                Integer paymentCount, List<PaymentDto> paymentDtoList) {
         this.status = status;
         this.message = message;
         this.orderId = orderId;
         this.productName = productName;
         this.totalAmount = totalAmount;
         this.paymentCount = paymentCount;
-        this.paymentList = paymentList.stream().map(PaymentDto::from).toList();
+        this.paymentList = paymentDtoList;
     }
 }

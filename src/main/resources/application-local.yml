@@ -1,0 +1,19 @@
+spring:
+  profiles:
+    active: local
+
+# Local 환경 결제 설정 (테스트 환경)
+toss:
+  api-key: test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R
+  execute-url: https://api.tosspayments.com/v1/payments/confirm
+
+inicis:
+  mid: INIpayTest
+  sign-key: SU5JTElURV9UUklQTEVERVNfS0VZRA==
+  charset: UTF-8
+  format: JSON
+
+logging:
+  level:
+    com.example.payment: DEBUG
+    root: INFO
