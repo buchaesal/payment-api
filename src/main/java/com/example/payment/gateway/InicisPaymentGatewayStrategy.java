@@ -3,6 +3,7 @@ package com.example.payment.gateway;
 import com.example.payment.client.InicisApiClient;
 import com.example.payment.dto.PaymentConfirmRequest;
 import com.example.payment.dto.PaymentGatewayResponse;
+import com.example.payment.dto.PaymentProcessResult;
 import com.example.payment.entity.Payment;
 import com.example.payment.repository.PaymentRepository;
 import org.slf4j.Logger;
@@ -101,7 +102,40 @@ public class InicisPaymentGatewayStrategy implements PaymentGatewayStrategy {
                 .rawResponse(rawResponse)
                 .build();
     }
-    
+
+    @Override
+    public void performNetCancellation(PaymentProcessResult processResult, PaymentConfirmRequest request) {
+        logger.warn("=== 이니시스 망취소 시작 ===");
+        logger.warn("TID: {}, 금액: {}원", processResult.getTid(), processResult.getAmount());
+
+        try {
+            Map<String, Object> authResultMap = request.getAuthResultMap();
+            if (authResultMap == null) {
+                throw new RuntimeException("이니시스 인증결과가 없어 망취소할 수 없습니다.");
+            }
+
+            String netCancelUrl = (String) authResultMap.get("netCancelUrl");
+            String authToken = (String) authResultMap.get("authToken");
+
+            if (netCancelUrl == null || authToken == null) {
+                throw new RuntimeException("이니시스 망취소에 필요한 정보가 부족합니다. (netCancelUrl, authToken)");
+            }
+
+            // 이니시스 전용 망취소 API 호출
+            Map<String, Object> cancelResult = inicisApiClient.requestNetCancel(
+                netCancelUrl,
+                authToken,
+                request.getOrderId()
+            );
+            logger.warn("이니시스 망취소 성공: {}", cancelResult);
+        } catch (Exception e) {
+            logger.error("이니시스 망취소 실패: {}", e.getMessage());
+            throw new RuntimeException("이니시스 망취소 실패: " + e.getMessage(), e);
+        }
+
+        logger.warn("=== 이니시스 망취소 완료 ===");
+    }
+
     @Override
     public boolean supports(String pgProvider) {
         // INICIS 문자열이 포함되면 이니시스

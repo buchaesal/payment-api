@@ -20,7 +20,7 @@ import java.util.HashMap;
 @Component
 @RequiredArgsConstructor
 public class CardPaymentStrategy implements PaymentStrategy {
-    
+
     private static final Logger logger = LoggerFactory.getLogger(CardPaymentStrategy.class);
     private final PaymentGatewayStrategyFactory gatewayStrategyFactory;
     
@@ -89,5 +89,22 @@ public class CardPaymentStrategy implements PaymentStrategy {
         }
 
         return pgRequest;
+    }
+
+    @Override
+    public void performNetCancellation(PaymentProcessResult processResult, PaymentConfirmRequest request) {
+        logger.warn("=== 카드결제 망취소 시작 ===");
+        logger.warn("PG사: {}, TID: {}, 금액: {}원", request.getPgProvider(), processResult.getTid(), processResult.getAmount());
+
+        try {
+            // PG 전략 선택 및 망취소 호출
+            PaymentGatewayStrategy gatewayStrategy = gatewayStrategyFactory.getStrategy(request.getPgProvider());
+            gatewayStrategy.performNetCancellation(processResult, request);
+
+            logger.warn("=== 카드결제 망취소 완료 ===");
+        } catch (Exception e) {
+            logger.error("카드결제 망취소 실패: {}", e.getMessage());
+            // 망취소 실패는 로그만 남기고 예외를 던지지 않음 (원본 예외가 더 중요)
+        }
     }
 }

@@ -3,6 +3,7 @@ package com.example.payment.gateway;
 import com.example.payment.client.TossApiClient;
 import com.example.payment.dto.PaymentConfirmRequest;
 import com.example.payment.dto.PaymentGatewayResponse;
+import com.example.payment.dto.PaymentProcessResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -97,12 +98,33 @@ public class TossPaymentGatewayStrategy implements PaymentGatewayStrategy {
                 .rawResponse(rawResponse)
                 .build();
     }
-    
+
+    @Override
+    public void performNetCancellation(PaymentProcessResult processResult, PaymentConfirmRequest request) {
+        logger.warn("=== 토스페이먼츠 망취소 시작 ===");
+        logger.warn("PaymentKey: {}, 금액: {}원", processResult.getTid(), processResult.getAmount());
+
+        try {
+            // 토스페이먼츠는 기존 취소 API를 그대로 사용
+            Map<String, Object> cancelResult = tossApiClient.requestPaymentCancellation(
+                processResult.getTid(), // paymentKey
+                "시스템 처리 실패로 인한 자동 망취소",
+                request.getOrderId()
+            );
+            logger.warn("토스페이먼츠 망취소 성공: {}", cancelResult);
+        } catch (Exception e) {
+            logger.error("토스페이먼츠 망취소 실패: {}", e.getMessage());
+            throw new RuntimeException("토스페이먼츠 망취소 실패: " + e.getMessage(), e);
+        }
+
+        logger.warn("=== 토스페이먼츠 망취소 완료 ===");
+    }
+
     @Override
     public boolean supports(String pgProvider) {
         // TOSS 또는 TOSSPAYMENTS 문자열이 포함되면 토스페이먼츠
-        return pgProvider != null && 
-               (pgProvider.toUpperCase().contains("TOSS") || 
+        return pgProvider != null &&
+               (pgProvider.toUpperCase().contains("TOSS") ||
                 pgProvider.toUpperCase().equals("TOSSPAYMENTS"));
     }
 }

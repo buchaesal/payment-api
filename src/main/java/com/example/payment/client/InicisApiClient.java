@@ -305,6 +305,109 @@ public class InicisApiClient {
     }
 
     /**
+     * 이니시스 망취소 API 호출 - 결제 승인 후 처리 실패 시 자동 취소
+     *
+     * @param netCancelUrl 망취소 URL (authResultMap에서 받은 netCancelUrl)
+     * @param authToken    승인요청 검증 토큰
+     * @param orderId      주문 ID (이력 관리용)
+     * @return 망취소 결과
+     * @throws RuntimeException API 호출 실패 시
+     */
+    public Map<String, Object> requestNetCancel(String netCancelUrl, String authToken, String orderId) {
+        try {
+            // 타임스탬프 생성
+            String timestamp = String.valueOf(System.currentTimeMillis());
+
+            // 해시 생성 (망취소용)
+            String signature = CryptoUtil.generateInicisSignature(authToken, timestamp);
+            String verification = CryptoUtil.generateInicisVerification(authToken, inicisConfig.getSignKey(), timestamp);
+
+            // 요청 파라미터 구성 (form-data 형식)
+            MultiValueMap<String, String> formData = new LinkedMultiValueMap<>();
+            formData.add("mid", inicisConfig.getMid());
+            formData.add("authToken", authToken);
+            formData.add("timestamp", timestamp);
+            formData.add("signature", signature);
+            formData.add("verification", verification);
+            formData.add("charset", inicisConfig.getCharset());
+            formData.add("format", inicisConfig.getFormat());
+
+            // 인터페이스 이력 생성 (요청 시작)
+            Map<String, Object> requestDataForHistory = convertFormDataToMap(formData);
+            InterfaceHistory history = interfaceHistoryService.createRequestHistory("INICIS", "netcancel", netCancelUrl, requestDataForHistory, orderId);
+            final Long historyId = history.getId();
+
+            logger.info("이니시스 망취소 요청: authToken={}, orderId={}, historyId={}", authToken, orderId, historyId);
+            logger.info("망취소 POST 데이터: {}", formData);
+
+            // WebClient를 사용한 비동기 HTTP 요청 (동기로 변환)
+            Map<String, Object> result = webClient
+                    .post()
+                    .uri(netCancelUrl)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .body(BodyInserters.fromFormData(formData))
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .map(responseBody -> {
+                        logger.info("이니시스 망취소 API 응답: {}", responseBody);
+                        Map<String, Object> parsedResult = parseResponse(responseBody);
+
+                        // 이니시스 망취소 응답에서 resultCode 검증
+                        String resultCode = (String) parsedResult.get("resultCode");
+                        if (resultCode != null && !"00".equals(resultCode)) {
+                            String resultMsg = (String) parsedResult.get("resultMsg");
+                            String errorMessage = String.format("이니시스 망취소 실패 - ResultCode: %s, Message: %s", resultCode, resultMsg);
+                            logger.error(errorMessage);
+                            throw new RuntimeException(errorMessage);
+                        }
+
+                        logger.info("=== 이니시스 망취소 API 호출 성공 (resultCode: {}) ===", resultCode);
+                        return parsedResult;
+                    })
+                    .onErrorMap(WebClientResponseException.class, ex -> {
+                        String errorMessage = "이니시스 망취소 API 호출 실패: HTTP " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString();
+                        logger.error(errorMessage);
+
+                        // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
+                        String responseCode = determineInicisResponseCode(ex.getStatusCode().value());
+                        Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(historyId, ex.getResponseBodyAsString(), responseCode, errorMessage))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .subscribe();
+
+                        return new RuntimeException(errorMessage);
+                    })
+                    .onErrorMap(Exception.class, ex -> {
+                        String errorMessage = "이니시스 망취소 API 호출 중 오류 발생: " + ex.getMessage();
+                        logger.error(errorMessage, ex);
+
+                        // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
+                        Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(historyId, null, "9999", errorMessage))
+                                .subscribeOn(Schedulers.boundedElastic())
+                                .subscribe();
+
+                        return new RuntimeException(errorMessage);
+                    })
+                    .timeout(Duration.ofSeconds(30)) // 30초 타임아웃
+                    .block();
+
+            // 성공 이력 업데이트
+            if (result != null) {
+                String inicisResultCode = determineInicisResultCode(result);
+                interfaceHistoryService.updateResponseHistory(historyId, result, inicisResultCode, null);
+            }
+
+            return result;
+
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            String errorMessage = "이니시스 망취소 API 호출 중 예상치 못한 오류 발생: " + e.getMessage();
+            logger.error(errorMessage, e);
+            throw new RuntimeException(errorMessage);
+        }
+    }
+
+    /**
      * 응답 파싱 (JSON 또는 다른 형식 처리)
      */
     private Map<String, Object> parseResponse(String responseBody) {

@@ -151,4 +151,11 @@ public class PointsPaymentStrategy implements PaymentStrategy {
 
         return new PaymentCancelResult("POINTS", request.getOrderId(), cancelAmount, pgResult);
     }
+
+    @Override
+    public void performNetCancellation(PaymentProcessResult processResult, PaymentConfirmRequest request) {
+        // 적립금 결제는 DB 트랜잭션 롤백으로 자동 처리되므로 별도 망취소 불필요
+        logger.info("적립금 결제 망취소: DB 트랜잭션 롤백으로 자동 처리됩니다. orderId={}, amount={}",
+                   processResult.getOrderId(), processResult.getAmount());
+    }
 }

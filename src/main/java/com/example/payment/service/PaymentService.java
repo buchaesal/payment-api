@@ -43,6 +43,7 @@ public class PaymentService {
         // 각 결제수단별 결제 처리
         List<Map<String, Object>> paymentResults = new ArrayList<>();
         List<Payment> paymentRecords = new ArrayList<>();
+        List<PaymentProcessResult> successfulPayments = new ArrayList<>(); // 성공한 결제 리스트
         Long totalProcessedAmount = 0L;
         
         try {
@@ -58,14 +59,17 @@ public class PaymentService {
                 // 전략 선택 및 결제 처리 (에러시 예외 던짐)
                 PaymentStrategy strategy = paymentStrategyFactory.getStrategy(item.getPaymentMethod());
                 PaymentProcessResult result = strategy.processPayment(itemRequest);
-                
+
+                // 성공한 결제 결과를 리스트에 추가 (망취소용)
+                successfulPayments.add(result);
+
                 // 결과를 Map으로 변환하여 기존 로직과 호환
                 Map<String, Object> resultMap = new HashMap<>();
                 resultMap.put("paymentMethod", result.getPaymentMethod());
                 resultMap.put("amount", result.getAmount());
                 resultMap.put("tid", result.getTid());
                 resultMap.put("pgResult", result.getPgResult());
-                
+
                 paymentResults.add(resultMap);
                 totalProcessedAmount += item.getAmount();
                 
@@ -110,6 +114,10 @@ public class PaymentService {
             
         } catch (Exception e) {
             logger.error("복합결제 처리 중 오류 발생: {}", e.getMessage());
+
+            // 망취소 처리: 성공한 결제수단들을 각각 망취소
+            performNetCancellation(successfulPayments, paymentItems, request);
+
             // 트랜잭션이 롤백되므로 이미 처리된 결제들도 자동으로 롤백됩니다
             throw new RuntimeException("복합결제 처리 실패: " + e.getMessage(), e);
         }
@@ -423,5 +431,67 @@ public class PaymentService {
             paymentList.size(),
             paymentDtoList  // DTO 리스트 사용
         );
+    }
+
+    /**
+     * 망취소 처리 - 성공한 결제수단들을 전략 패턴으로 각각 망취소
+     *
+     * @param successfulPayments 성공한 결제 결과 리스트
+     * @param paymentItems       결제 항목 리스트 (전략 선택용)
+     * @param request            원본 결제 요청
+     */
+    private void performNetCancellation(List<PaymentProcessResult> successfulPayments, List<PaymentItem> paymentItems, PaymentConfirmRequest request) {
+        if (successfulPayments.isEmpty()) {
+            logger.info("망취소할 성공한 결제가 없습니다.");
+            return;
+        }
+
+        logger.warn("=== 망취소 처리 시작 ===");
+        logger.warn("망취소 대상 결제수단 수: {}", successfulPayments.size());
+
+        for (PaymentProcessResult successfulPayment : successfulPayments) {
+            try {
+                // 해당 결제수단의 PaymentItem 찾기 (전략 선택을 위해)
+                PaymentItem correspondingItem = findCorrespondingPaymentItem(successfulPayment, paymentItems);
+                if (correspondingItem == null) {
+                    logger.warn("망취소할 결제수단의 PaymentItem을 찾을 수 없습니다: {}", successfulPayment.getPaymentMethod());
+                    continue;
+                }
+
+                // 개별 결제 요청 재생성 (망취소용)
+                PaymentConfirmRequest itemRequest = createItemRequest(request, correspondingItem);
+
+                // 전략 선택 및 망취소 호출
+                PaymentStrategy strategy = paymentStrategyFactory.getStrategy(correspondingItem.getPaymentMethod());
+                strategy.performNetCancellation(successfulPayment, itemRequest);
+
+                logger.warn("망취소 완료: 결제수단={}, 금액={}원",
+                           successfulPayment.getPaymentMethod(), successfulPayment.getAmount());
+
+            } catch (Exception netCancelException) {
+                // 망취소 실패는 로그만 남기고 원본 예외를 우선시함
+                logger.error("망취소 실패 (원본 결제 실패가 더 중요함): 결제수단={}, 오류={}",
+                           successfulPayment.getPaymentMethod(), netCancelException.getMessage());
+            }
+        }
+
+        logger.warn("=== 망취소 처리 완료 ===");
+    }
+
+    /**
+     * 성공한 결제 결과에 해당하는 PaymentItem 찾기
+     */
+    private PaymentItem findCorrespondingPaymentItem(PaymentProcessResult successfulPayment, List<PaymentItem> paymentItems) {
+        String paymentMethod = successfulPayment.getPaymentMethod();
+
+        return paymentItems.stream()
+            .filter(item -> {
+                String itemMethod = item.getPaymentMethod().name();
+                return itemMethod.equals(paymentMethod) ||
+                       (item.getPaymentMethod() == PaymentMethod.CARD && "CARD".equals(paymentMethod)) ||
+                       (item.getPaymentMethod() == PaymentMethod.POINTS && "POINTS".equals(paymentMethod));
+            })
+            .findFirst()
+            .orElse(null);
     }
 }
