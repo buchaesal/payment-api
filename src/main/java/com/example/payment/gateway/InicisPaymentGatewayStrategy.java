@@ -109,13 +109,13 @@ public class InicisPaymentGatewayStrategy implements PaymentGatewayStrategy {
         logger.warn("TID: {}, 금액: {}원", processResult.getTid(), processResult.getAmount());
 
         try {
-            Map<String, Object> authResultMap = request.getAuthResultMap();
+            Map<String, String> authResultMap = request.getAuthResultMap();
             if (authResultMap == null) {
                 throw new RuntimeException("이니시스 인증결과가 없어 망취소할 수 없습니다.");
             }
 
-            String netCancelUrl = (String) authResultMap.get("netCancelUrl");
-            String authToken = (String) authResultMap.get("authToken");
+            String netCancelUrl = authResultMap.get("netCancelUrl");
+            String authToken = authResultMap.get("authToken");
 
             if (netCancelUrl == null || authToken == null) {
                 throw new RuntimeException("이니시스 망취소에 필요한 정보가 부족합니다. (netCancelUrl, authToken)");

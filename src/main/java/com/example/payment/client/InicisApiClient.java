@@ -354,7 +354,7 @@ public class InicisApiClient {
 
                         // 이니시스 망취소 응답에서 resultCode 검증
                         String resultCode = (String) parsedResult.get("resultCode");
-                        if (resultCode != null && !"00".equals(resultCode)) {
+                        if (resultCode != null && !"0000".equals(resultCode)) {
                             String resultMsg = (String) parsedResult.get("resultMsg");
                             String errorMessage = String.format("이니시스 망취소 실패 - ResultCode: %s, Message: %s", resultCode, resultMsg);
                             logger.error(errorMessage);
