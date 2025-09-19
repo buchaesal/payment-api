@@ -47,19 +47,19 @@ public class InterfaceHistoryService {
      * API 응답 완료시 이력 업데이트
      */
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public void updateResponseHistory(Long historyId, Object responseData, String responseCode, Integer httpStatus, String errorMessage) {
+    public void updateResponseHistory(Long historyId, Object responseData, String responseCode, String errorMessage) {
         try {
             InterfaceHistory history = interfaceHistoryRepository.findById(historyId)
                 .orElseThrow(() -> new IllegalArgumentException("인터페이스 이력을 찾을 수 없습니다: " + historyId));
-            
+
             String responseJson = convertToJson(responseData);
-            history.completeResponse(responseJson, responseCode, httpStatus, errorMessage);
-            
+            history.completeResponse(responseJson, responseCode, errorMessage);
+
             interfaceHistoryRepository.save(history);
-            
-            logger.info("인터페이스 응답 이력 업데이트: ID={}, ResponseCode={}, HttpStatus={}, ProcessingTime={}ms", 
-                historyId, responseCode, httpStatus, history.getProcessingTimeMs());
-            
+
+            logger.info("인터페이스 응답 이력 업데이트: ID={}, ResponseCode={}, ProcessingTime={}ms",
+                historyId, responseCode, history.getProcessingTimeMs());
+
         } catch (Exception e) {
             logger.error("인터페이스 응답 이력 업데이트 실패: historyId={}", historyId, e);
             // 이력 업데이트 실패는 원본 처리에 영향을 주지 않도록 예외를 던지지 않음
@@ -69,18 +69,18 @@ public class InterfaceHistoryService {
     /**
      * API 호출 성공시 이력 업데이트 (간편 메서드)
      */
-    public void updateSuccessHistory(Long historyId, Object responseData, Integer httpStatus) {
-        updateResponseHistory(historyId, responseData, "0000", httpStatus, null);
+    public void updateSuccessHistory(Long historyId, Object responseData) {
+        updateResponseHistory(historyId, responseData, "0000", null);
     }
-    
+
     /**
      * API 호출 실패시 이력 업데이트 (간편 메서드)
      */
-    public void updateFailureHistory(Long historyId, Object responseData, String responseCode, Integer httpStatus, String errorMessage) {
+    public void updateFailureHistory(Long historyId, Object responseData, String responseCode, String errorMessage) {
         if (responseCode == null || "0000".equals(responseCode)) {
             responseCode = "9999"; // 기본 실패 코드
         }
-        updateResponseHistory(historyId, responseData, responseCode, httpStatus, errorMessage);
+        updateResponseHistory(historyId, responseData, responseCode, errorMessage);
     }
     
     /**

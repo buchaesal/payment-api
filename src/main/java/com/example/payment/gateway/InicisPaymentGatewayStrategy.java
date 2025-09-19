@@ -28,12 +28,7 @@ public class InicisPaymentGatewayStrategy implements PaymentGatewayStrategy {
         logger.info("=== 이니시스 결제 승인 시작 ===");
 
         Map<String, String> authResultMap = request.getAuthResultMap();
-        String tid = authResultMap.get("tid");
-        String oid = authResultMap.get("oid");
-        String price = authResultMap.get("price");
         String resultCode = authResultMap.get("resultCode");
-
-        logger.info("이니시스 승인 파라미터 - TID: {}, OID: {}, Price: {}, ResultCode: {}", tid, oid, price, resultCode);
 
         // 이니시스 인증이 성공한 경우에만 승인 진행
         if (!"0000".equals(resultCode)) {
@@ -59,9 +54,9 @@ public class InicisPaymentGatewayStrategy implements PaymentGatewayStrategy {
 
         // 이니시스 응답을 표준화된 PaymentGatewayResponse로 변환
         return PaymentGatewayResponse.builder()
-                .tid(tid)  // 이니시스는 tid 그대로 사용
-                .orderId(oid)
-                .amount(Long.parseLong(price))
+                .tid((String) rawResponse.get("tid"))  // 이니시스는 tid 그대로 사용
+                .orderId(orderId)
+                .amount(request.getAmount())
                 .responseCode(resultCode)
                 .responseMessage("SUCCESS")
                 .success(true)

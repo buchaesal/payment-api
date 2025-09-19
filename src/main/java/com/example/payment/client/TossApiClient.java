@@ -76,7 +76,6 @@ public class TossApiClient {
                 .bodyToMono(String.class)
                 .map(responseBody -> {
                     Map<String, Object> parsedResult = parseResponse(responseBody);
-                    parsedResult.put("httpStatus", 200);
                     logger.info("토스 결제 승인 성공: {}", parsedResult);
                     return parsedResult;
                 })
@@ -86,7 +85,7 @@ public class TossApiClient {
 
                     // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
                     String responseCode = determineResponseCode(ex.getStatusCode().value());
-                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage))
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), ex.getResponseBodyAsString(), responseCode, errorMessage))
                         .subscribeOn(Schedulers.boundedElastic())
                         .subscribe();
 
@@ -97,7 +96,7 @@ public class TossApiClient {
                     logger.error(errorMessage, ex);
 
                     // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
-                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), null, "9999", null, errorMessage))
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), null, "9999", errorMessage))
                         .subscribeOn(Schedulers.boundedElastic())
                         .subscribe();
 
@@ -108,10 +107,9 @@ public class TossApiClient {
             
             // 성공 이력 업데이트를 별도 스레드에서 비동기로 실행
             if (result != null) {
-                Integer httpStatus = (Integer) result.get("httpStatus");
                 final Map<String, Object> finalResult = result;
                 final Long finalHistoryId = history.getId();
-                Mono.fromRunnable(() -> interfaceHistoryService.updateSuccessHistory(finalHistoryId, finalResult, httpStatus))
+                Mono.fromRunnable(() -> interfaceHistoryService.updateSuccessHistory(finalHistoryId, finalResult))
                     .subscribeOn(Schedulers.boundedElastic())
                     .subscribe();
             }
@@ -128,7 +126,7 @@ public class TossApiClient {
             // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
             if (history != null) {
                 final Long finalHistoryIdForCatch = history.getId();
-                Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistoryIdForCatch, null, "9999", null, errorMessage))
+                Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistoryIdForCatch, null, "9999", errorMessage))
                     .subscribeOn(Schedulers.boundedElastic())
                     .subscribe();
             }
@@ -193,7 +191,6 @@ public class TossApiClient {
                 .bodyToMono(String.class)
                 .map(responseBody -> {
                     Map<String, Object> parsedResult = parseResponse(responseBody);
-                    parsedResult.put("httpStatus", 200);
                     logger.info("토스 결제 취소 성공: {}", parsedResult);
                     return parsedResult;
                 })
@@ -203,7 +200,7 @@ public class TossApiClient {
 
                     // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
                     String responseCode = determineResponseCode(ex.getStatusCode().value());
-                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage))
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), ex.getResponseBodyAsString(), responseCode, errorMessage))
                         .subscribeOn(Schedulers.boundedElastic())
                         .subscribe();
 
@@ -214,7 +211,7 @@ public class TossApiClient {
                     logger.error(errorMessage, ex);
 
                     // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
-                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), null, "9999", null, errorMessage))
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), null, "9999", errorMessage))
                         .subscribeOn(Schedulers.boundedElastic())
                         .subscribe();
 
@@ -225,10 +222,9 @@ public class TossApiClient {
 
             // 성공 이력 업데이트를 별도 스레드에서 비동기로 실행
             if (result != null) {
-                Integer httpStatus = (Integer) result.get("httpStatus");
                 final Map<String, Object> finalResult = result;
                 final Long finalHistoryId = history.getId();
-                Mono.fromRunnable(() -> interfaceHistoryService.updateSuccessHistory(finalHistoryId, finalResult, httpStatus))
+                Mono.fromRunnable(() -> interfaceHistoryService.updateSuccessHistory(finalHistoryId, finalResult))
                     .subscribeOn(Schedulers.boundedElastic())
                     .subscribe();
             }
@@ -245,7 +241,7 @@ public class TossApiClient {
             // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
             if (history != null) {
                 final Long finalHistoryIdForCatch = history.getId();
-                Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistoryIdForCatch, null, "9999", null, errorMessage))
+                Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistoryIdForCatch, null, "9999", errorMessage))
                     .subscribeOn(Schedulers.boundedElastic())
                     .subscribe();
             }

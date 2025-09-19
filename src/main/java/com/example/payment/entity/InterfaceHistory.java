@@ -36,9 +36,6 @@ public class InterfaceHistory {
     @Column(name = "response_code", length = 10)
     private String responseCode; // 응답 코드 (성공: 0000, 실패: 기타)
     
-    @Column(name = "http_status")
-    private Integer httpStatus; // HTTP 상태 코드
-    
     @Column(name = "request_time", nullable = false)
     private LocalDateTime requestTime; // 요청 시간
     
@@ -91,13 +88,12 @@ public class InterfaceHistory {
     /**
      * 응답 완료 시 호출하는 메서드
      */
-    public void completeResponse(String responseJson, String responseCode, Integer httpStatus, String errorMessage) {
+    public void completeResponse(String responseJson, String responseCode, String errorMessage) {
         this.responseJson = responseJson;
         this.responseCode = responseCode;
-        this.httpStatus = httpStatus;
         this.errorMessage = errorMessage;
         this.responseTime = LocalDateTime.now();
-        
+
         if (this.requestTime != null && this.responseTime != null) {
             this.processingTimeMs = java.time.Duration.between(this.requestTime, this.responseTime).toMillis();
         }
