@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ public class InterfaceHistoryService {
     /**
      * API 요청 시작시 이력 생성
      */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public InterfaceHistory createRequestHistory(String interfaceType, String apiName, String requestUrl, Object requestData, String orderId) {
         try {
             String requestJson = convertToJson(requestData);
@@ -44,6 +46,7 @@ public class InterfaceHistoryService {
     /**
      * API 응답 완료시 이력 업데이트
      */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void updateResponseHistory(Long historyId, Object responseData, String responseCode, Integer httpStatus, String errorMessage) {
         try {
             InterfaceHistory history = interfaceHistoryRepository.findById(historyId)

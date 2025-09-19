@@ -23,4 +23,11 @@ public class TossConfig {
      * - v1 API: https://api.tosspayments.com/v1/payments/confirm
      */
     private String executeUrl;
+
+    /**
+     * 토스페이먼츠 결제 취소 API URL
+     * - v1 API: https://api.tosspayments.com/v1/payments/{paymentKey}/cancel
+     * - {paymentKey} 부분은 실제 paymentKey로 치환하여 사용
+     */
+    private String cancelUrl;
 }

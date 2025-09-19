@@ -2,12 +2,12 @@ package com.example.payment.gateway;
 
 import com.example.payment.client.TossApiClient;
 import com.example.payment.dto.PaymentConfirmRequest;
+import com.example.payment.dto.PaymentGatewayResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -19,16 +19,16 @@ public class TossPaymentGatewayStrategy implements PaymentGatewayStrategy {
     private TossApiClient tossApiClient;
     
     @Override
-    public Map<String, Object> processApproval(PaymentConfirmRequest request) {
-        
+    public PaymentGatewayResponse processApproval(PaymentConfirmRequest request) {
+
         Map<String, String> authResultMap = request.getAuthResultMap();
         String paymentKey = authResultMap.get("paymentKey"); // 인증 응답의 paymentKey
         String orderId = request.getOrderId(); // 주문 ID
-        
+
         if (paymentKey == null) {
             throw new IllegalArgumentException("토스 승인에 필요한 paymentKey가 없습니다");
         }
-        
+
         if (orderId == null) {
             throw new IllegalArgumentException("토스 승인에 필요한 orderId가 없습니다");
         }
@@ -37,26 +37,65 @@ public class TossPaymentGatewayStrategy implements PaymentGatewayStrategy {
         if (cardAmount <= 0) {
             throw new IllegalArgumentException("토스 승인에 필요한 카드 결제 금액이 없습니다");
         }
-        
+
         logger.info("토스 결제 승인 요청: paymentKey={}, amount={}, orderId={}", paymentKey, cardAmount, orderId);
 
         // v1 API로 승인 요청 (paymentKey, amount, orderId)
-        return tossApiClient.requestPaymentApproval(paymentKey, cardAmount, orderId);
+        Map<String, Object> rawResponse = tossApiClient.requestPaymentApproval(paymentKey, cardAmount, orderId);
+
+        // 토스페이먼츠 응답을 표준화된 PaymentGatewayResponse로 변환
+        return PaymentGatewayResponse.builder()
+                .tid(paymentKey)  // 토스는 paymentKey를 tid로 사용
+                .orderId(orderId)
+                .amount(cardAmount)
+                .responseCode("0000")  // 성공 시 기본 코드
+                .responseMessage("SUCCESS")
+                .success(true)
+                .rawResponse(rawResponse)
+                .approvalNumber((String) rawResponse.get("approvalNumber"))
+                .approvedAt((String) rawResponse.get("approvedAt"))
+                .build();
     }
     
     @Override
-    public Map<String, Object> processCancellation(PaymentConfirmRequest request) {
+    public PaymentGatewayResponse processCancellation(PaymentConfirmRequest request) {
         logger.info("=== 토스페이먼츠 결제 취소 시작 ===");
-        
-        // TODO: 실제 토스페이먼츠 취소 API 호출 구현
-        // 현재는 임시 응답 반환
-        Map<String, Object> response = new HashMap<>();
-        response.put("status", "SUCCESS");
-        response.put("message", "토스페이먼츠 결제 취소 완료");
-        response.put("canceledAt", java.time.LocalDateTime.now().toString());
-        
+
+        // PaymentConfirmRequest에서 필요한 정보 추출
+        // 취소 시에는 이미 저장된 Payment의 tid를 사용 (토스의 경우 tid = paymentKey)
+        String paymentKey = null;
+        if (request.getAuthResultMap() != null) {
+            paymentKey = request.getAuthResultMap().get("tid");  // 토스의 경우 tid에 paymentKey가 저장됨
+        }
+
+        String orderId = request.getOrderId();
+        String cancelReason = "단순변심";  // 고정값으로 설정
+
+        if (paymentKey == null || paymentKey.trim().isEmpty()) {
+            throw new IllegalArgumentException("토스 취소에 필요한 paymentKey가 없습니다");
+        }
+
+        if (orderId == null || orderId.trim().isEmpty()) {
+            throw new IllegalArgumentException("토스 취소에 필요한 orderId가 없습니다");
+        }
+
+        logger.info("토스 결제 취소 요청: paymentKey={}, orderId={}, cancelReason={}", paymentKey, orderId, cancelReason);
+
+        // 실제 토스페이먼츠 취소 API 호출
+        Map<String, Object> rawResponse = tossApiClient.requestPaymentCancellation(paymentKey, cancelReason, orderId);
+
         logger.info("=== 토스페이먼츠 결제 취소 완료 ===");
-        return response;
+
+        // 토스페이먼츠 취소 응답을 표준화된 PaymentGatewayResponse로 변환
+        return PaymentGatewayResponse.builder()
+                .tid(paymentKey)  // 토스는 paymentKey를 tid로 사용
+                .orderId(orderId)
+                .amount(request.getAmount())
+                .responseCode("0000")
+                .responseMessage("CANCELED")
+                .success(true)
+                .rawResponse(rawResponse)
+                .build();
     }
     
     @Override

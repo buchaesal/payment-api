@@ -15,6 +15,8 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.time.Duration;
 import java.util.HashMap;
@@ -92,19 +94,23 @@ public class InicisApiClient {
                 .onErrorMap(WebClientResponseException.class, ex -> {
                     String errorMessage = "이니시스 결제 승인 API 호출 실패: HTTP " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString();
                     logger.error(errorMessage);
-                    
-                    // 실패 이력 업데이트
+
+                    // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
                     String responseCode = determineInicisResponseCode(ex.getStatusCode().value());
-                    interfaceHistoryService.updateFailureHistory(historyId, ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage);
-                    
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(historyId, ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe();
+
                     return new RuntimeException(errorMessage);
                 })
                 .onErrorMap(Exception.class, ex -> {
                     String errorMessage = "이니시스 결제 승인 API 호출 중 오류 발생: " + ex.getMessage();
                     logger.error(errorMessage, ex);
-                    
-                    // 실패 이력 업데이트
-                    interfaceHistoryService.updateFailureHistory(historyId, null, "9999", null, errorMessage);
+
+                    // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(historyId, null, "9999", null, errorMessage))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe();
                     
                     return new RuntimeException(errorMessage);
                 })
@@ -263,19 +269,23 @@ public class InicisApiClient {
                 .onErrorMap(WebClientResponseException.class, ex -> {
                     String errorMessage = "이니시스 결제 취소 API 호출 실패: HTTP " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString();
                     logger.error(errorMessage);
-                    
-                    // 실패 이력 업데이트
+
+                    // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
                     String responseCode = determineInicisResponseCode(ex.getStatusCode().value());
-                    interfaceHistoryService.updateFailureHistory(historyId, ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage);
-                    
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(historyId, ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe();
+
                     return new RuntimeException(errorMessage);
                 })
                 .onErrorMap(Exception.class, ex -> {
                     String errorMessage = "이니시스 결제 취소 API 호출 중 오류 발생: " + ex.getMessage();
                     logger.error(errorMessage, ex);
-                    
-                    // 실패 이력 업데이트
-                    interfaceHistoryService.updateFailureHistory(historyId, null, "9999", null, errorMessage);
+
+                    // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(historyId, null, "9999", null, errorMessage))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe();
                     
                     return new RuntimeException(errorMessage);
                 })

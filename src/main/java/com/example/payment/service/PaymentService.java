@@ -136,8 +136,8 @@ public class PaymentService {
                 originalPayment.getPaymentAmount());
             
             // 취소 요청 생성
-            PaymentConfirmRequest cancelRequest = createCancelRequest(originalPayment);
-            
+            PaymentCancelRequest cancelRequest = createCancelRequest(originalPayment);
+
             // 전략 선택 및 취소 처리 (에러시 예외 던짐)
             PaymentStrategy strategy = paymentStrategyFactory.getStrategy(originalPayment.getPaymentMethod());
             PaymentCancelResult result = strategy.cancelPayment(cancelRequest);
@@ -176,31 +176,24 @@ public class PaymentService {
         }
     }
     
-    private PaymentConfirmRequest createCancelRequest(Payment originalPayment) {
-        PaymentConfirmRequest request = new PaymentConfirmRequest();
-        
-        // 기본 정보 설정
-        request.setOrderId(originalPayment.getOrderId());
-        request.setAmount(originalPayment.getPaymentAmount());
-        request.setTotalAmount(originalPayment.getPaymentAmount());
-        request.setPaymentMethod(originalPayment.getPaymentMethod());
-        request.setPgProvider(originalPayment.getPgProvider());
-        request.setProductName(originalPayment.getProductName());
-        request.setMemberId(originalPayment.getMember().getMemberId());
-        
-        // tid 설정 (PG 취소에 필요)
+    private PaymentCancelRequest createCancelRequest(Payment originalPayment) {
+        PaymentCancelRequest.PaymentCancelRequestBuilder builder = PaymentCancelRequest.builder()
+                .orderId(originalPayment.getOrderId())
+                .amount(originalPayment.getPaymentAmount())
+                .paymentMethod(originalPayment.getPaymentMethod())
+                .pgProvider(originalPayment.getPgProvider())
+                .memberId(originalPayment.getMember().getMemberId())
+                .transactionId(originalPayment.getTid())  // 거래 ID (토스: paymentKey, 이니시스: tid)
+                .cancelReason("관리자 취소");  // 기본 취소 사유
+
+        // PG사별 추가 인증 정보가 필요한 경우
         if (originalPayment.getTid() != null) {
-            Map<String, String> authResultMap = new HashMap<>();
-            authResultMap.put("tid", originalPayment.getTid());
-            request.setAuthResultMap(authResultMap);
+            Map<String, String> authData = new HashMap<>();
+            authData.put("tid", originalPayment.getTid());
+            builder.authData(authData);
         }
-        
-        // 적립금 사용의 경우 포인트 정보 설정
-        if (originalPayment.getPaymentMethod() == PaymentMethod.POINTS) {
-            request.setUsePoints(originalPayment.getPaymentAmount());
-        }
-        
-        return request;
+
+        return builder.build();
     }
     
     private List<PaymentItem> preparePaymentItems(PaymentConfirmRequest request) {

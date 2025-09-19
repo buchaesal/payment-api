@@ -11,6 +11,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -82,29 +83,37 @@ public class TossApiClient {
                 .onErrorMap(WebClientResponseException.class, ex -> {
                     String errorMessage = "토스 결제 승인 API 호출 실패: HTTP " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString();
                     logger.error(errorMessage);
-                    
-                    // 실패 이력 업데이트
+
+                    // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
                     String responseCode = determineResponseCode(ex.getStatusCode().value());
-                    interfaceHistoryService.updateFailureHistory(finalHistory.getId(), ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage);
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe();
 
                     return new RuntimeException(errorMessage);
                 })
                 .onErrorMap(Exception.class, ex -> {
                     String errorMessage = "토스 결제 승인 API 호출 중 오류 발생: " + ex.getMessage();
                     logger.error(errorMessage, ex);
-                    
-                    // 실패 이력 업데이트
-                    interfaceHistoryService.updateFailureHistory(finalHistory.getId(), null, "9999", null, errorMessage);
+
+                    // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), null, "9999", null, errorMessage))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe();
 
                     return new RuntimeException(errorMessage);
                 })
                 .timeout(Duration.ofSeconds(30)) // 30초 타임아웃
                 .block();
             
-            // 성공 이력 업데이트
+            // 성공 이력 업데이트를 별도 스레드에서 비동기로 실행
             if (result != null) {
                 Integer httpStatus = (Integer) result.get("httpStatus");
-                interfaceHistoryService.updateSuccessHistory(history.getId(), result, httpStatus);
+                final Map<String, Object> finalResult = result;
+                final Long finalHistoryId = history.getId();
+                Mono.fromRunnable(() -> interfaceHistoryService.updateSuccessHistory(finalHistoryId, finalResult, httpStatus))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .subscribe();
             }
             
             return result;
@@ -116,9 +125,12 @@ public class TossApiClient {
             String errorMessage = "토스 결제 승인 API 호출 중 예상치 못한 오류 발생: " + e.getMessage();
             logger.error(errorMessage, e);
             
-            // 실패 이력 업데이트
+            // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
             if (history != null) {
-                interfaceHistoryService.updateFailureHistory(history.getId(), null, "9999", null, errorMessage);
+                final Long finalHistoryIdForCatch = history.getId();
+                Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistoryIdForCatch, null, "9999", null, errorMessage))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .subscribe();
             }
             
             throw new RuntimeException(errorMessage);
@@ -140,6 +152,108 @@ public class TossApiClient {
         }
     }
     
+    /**
+     * 토스 결제 취소 API 호출 (v1 API) - 인터페이스 이력 로깅 적용
+     * @param paymentKey 결제 고유 키 (PayToken)
+     * @param cancelReason 취소 사유
+     * @param orderId 주문 ID (로깅용)
+     * @return 취소 결과
+     * @throws RuntimeException API 호출 실패 시
+     */
+    public Map<String, Object> requestPaymentCancellation(String paymentKey, String cancelReason, String orderId) {
+        // 인터페이스 이력 시작
+        InterfaceHistory history = null;
+
+        try {
+            // Base64 인증 헤더 생성
+            String authHeader = createAuthorizationHeader();
+
+            // 환경별 설정에서 취소 URL을 가져와서 {paymentKey} placeholder 치환
+            String cancelUrl = tossConfig.getCancelUrl().replace("{paymentKey}", paymentKey);
+
+            // 요청 데이터 구성
+            Map<String, Object> requestData = new HashMap<>();
+            requestData.put("cancelReason", cancelReason);
+
+            // 인터페이스 이력 생성 (요청 시작)
+            history = interfaceHistoryService.createRequestHistory("TOSS", "cancel", cancelUrl, requestData, orderId);
+            final InterfaceHistory finalHistory = history;
+
+            logger.info("토스 결제 취소 요청: paymentKey={}, cancelReason={}, orderId={}, historyId={}",
+                       paymentKey, cancelReason, orderId, history.getId());
+
+            // WebClient를 사용한 비동기 HTTP 요청 (동기로 변환)
+            Map<String, Object> result = webClient
+                .post()
+                .uri(cancelUrl)
+                .header("Authorization", authHeader)
+                .header("Content-Type", "application/json")
+                .bodyValue(requestData)
+                .retrieve()
+                .bodyToMono(String.class)
+                .map(responseBody -> {
+                    Map<String, Object> parsedResult = parseResponse(responseBody);
+                    parsedResult.put("httpStatus", 200);
+                    logger.info("토스 결제 취소 성공: {}", parsedResult);
+                    return parsedResult;
+                })
+                .onErrorMap(WebClientResponseException.class, ex -> {
+                    String errorMessage = "토스 결제 취소 API 호출 실패: HTTP " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString();
+                    logger.error(errorMessage);
+
+                    // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
+                    String responseCode = determineResponseCode(ex.getStatusCode().value());
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), ex.getResponseBodyAsString(), responseCode, ex.getStatusCode().value(), errorMessage))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe();
+
+                    return new RuntimeException(errorMessage);
+                })
+                .onErrorMap(Exception.class, ex -> {
+                    String errorMessage = "토스 결제 취소 API 호출 중 오류 발생: " + ex.getMessage();
+                    logger.error(errorMessage, ex);
+
+                    // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
+                    Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistory.getId(), null, "9999", null, errorMessage))
+                        .subscribeOn(Schedulers.boundedElastic())
+                        .subscribe();
+
+                    return new RuntimeException(errorMessage);
+                })
+                .timeout(Duration.ofSeconds(30)) // 30초 타임아웃
+                .block();
+
+            // 성공 이력 업데이트를 별도 스레드에서 비동기로 실행
+            if (result != null) {
+                Integer httpStatus = (Integer) result.get("httpStatus");
+                final Map<String, Object> finalResult = result;
+                final Long finalHistoryId = history.getId();
+                Mono.fromRunnable(() -> interfaceHistoryService.updateSuccessHistory(finalHistoryId, finalResult, httpStatus))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .subscribe();
+            }
+
+            return result;
+
+        } catch (RuntimeException e) {
+            // onErrorMap에서 생성된 RuntimeException을 다시 던짐
+            throw e;
+        } catch (Exception e) {
+            String errorMessage = "토스 결제 취소 API 호출 중 예상치 못한 오류 발생: " + e.getMessage();
+            logger.error(errorMessage, e);
+
+            // 실패 이력 업데이트를 별도 스레드에서 비동기로 실행
+            if (history != null) {
+                final Long finalHistoryIdForCatch = history.getId();
+                Mono.fromRunnable(() -> interfaceHistoryService.updateFailureHistory(finalHistoryIdForCatch, null, "9999", null, errorMessage))
+                    .subscribeOn(Schedulers.boundedElastic())
+                    .subscribe();
+            }
+
+            throw new RuntimeException(errorMessage);
+        }
+    }
+
     /**
      * Authorization 헤더 생성 (Basic 인증)
      * apiKey에 콜론을 붙인 후 Base64로 인코딩

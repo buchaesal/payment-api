@@ -6,6 +6,7 @@ spring:
 toss:
   api-key: test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq  # TODO: 실제 운영 키로 교체
   execute-url: https://pay.toss.im/api/v2/execute
+  cancel-url: https://pay.toss.im/api/v2/payments/{paymentKey}/cancel
 
 inicis:
   mid: INIpayTest  # TODO: 실제 운영 상점ID로 교체

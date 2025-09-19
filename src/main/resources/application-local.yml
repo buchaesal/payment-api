@@ -4,8 +4,9 @@ spring:
 
 # Local 환경 결제 설정 (테스트 환경)
 toss:
-  api-key: test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R
+  api-key: test_sk_P9BRQmyarY56W4lPgbnNrJ07KzLN
   execute-url: https://api.tosspayments.com/v1/payments/confirm
+  cancel-url: https://api.tosspayments.com/v1/payments/{paymentKey}/cancel
 
 inicis:
   mid: INIpayTest
