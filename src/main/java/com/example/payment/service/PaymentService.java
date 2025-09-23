@@ -294,23 +294,19 @@ public class PaymentService {
             // 승인건과 취소건 분류
             List<Payment> approvePayments = paymentGroup.stream()
                     .filter(p -> p.getPayType() == null || p.getPayType().name().equals("APPROVE"))
-                    .collect(Collectors.toList());
+                    .toList();
             List<Payment> cancelPayments = paymentGroup.stream()
                     .filter(p -> p.getPayType() != null && p.getPayType().name().equals("CANCEL"))
-                    .collect(Collectors.toList());
+                    .toList();
             
             if (!approvePayments.isEmpty()) {
                 // 승인건을 기준으로 함 (가장 최근 것)
-                Payment basePayment = approvePayments.stream()
-                        .sorted((a, b) -> b.getPaymentAt().compareTo(a.getPaymentAt()))
-                        .findFirst()
+                Payment basePayment = approvePayments.stream().min((a, b) -> b.getPaymentAt().compareTo(a.getPaymentAt()))
                         .get();
                 
                 // 취소건이 있으면 취소 정보 추가
                 if (!cancelPayments.isEmpty()) {
-                    Payment cancelPayment = cancelPayments.stream()
-                            .sorted((a, b) -> b.getPaymentAt().compareTo(a.getPaymentAt()))
-                            .findFirst()
+                    Payment cancelPayment = cancelPayments.stream().min((a, b) -> b.getPaymentAt().compareTo(a.getPaymentAt()))
                             .get();
                     
                     // 가상의 병합된 Payment 객체 생성 (취소 정보 포함)

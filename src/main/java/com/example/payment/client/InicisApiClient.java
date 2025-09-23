@@ -243,7 +243,7 @@ public class InicisApiClient {
                     .bodyValue(requestData)
                     .retrieve()
                     .bodyToMono(String.class)
-                    .map(responseBody -> {
+                    .flatMap(responseBody -> {
                         logger.info("이니시스 취소 API 응답: {}", responseBody);
                         Map<String, Object> parsedResult = parseResponse(responseBody);
 
@@ -253,11 +253,11 @@ public class InicisApiClient {
                             String resultMsg = (String) parsedResult.get("resultMsg");
                             String errorMessage = String.format("이니시스 취소 실패 - ResultCode: %s, Message: %s", resultCode, resultMsg);
                             logger.error(errorMessage);
-                            throw new RuntimeException(errorMessage);
+                            return Mono.error(new RuntimeException(errorMessage));
                         }
 
                         logger.info("=== 이니시스 취소 API 호출 성공 (resultCode: {}) ===", resultCode);
-                        return parsedResult;
+                        return Mono.just(parsedResult);
                     })
                     .onErrorMap(WebClientResponseException.class, ex -> {
                         String errorMessage = "이니시스 결제 취소 API 호출 실패: HTTP " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString();
@@ -348,7 +348,7 @@ public class InicisApiClient {
                     .body(BodyInserters.fromFormData(formData))
                     .retrieve()
                     .bodyToMono(String.class)
-                    .map(responseBody -> {
+                    .flatMap(responseBody -> {
                         logger.info("이니시스 망취소 API 응답: {}", responseBody);
                         Map<String, Object> parsedResult = parseResponse(responseBody);
 
@@ -358,11 +358,11 @@ public class InicisApiClient {
                             String resultMsg = (String) parsedResult.get("resultMsg");
                             String errorMessage = String.format("이니시스 망취소 실패 - ResultCode: %s, Message: %s", resultCode, resultMsg);
                             logger.error(errorMessage);
-                            throw new RuntimeException(errorMessage);
+                            return Mono.error(new RuntimeException(errorMessage));
                         }
 
                         logger.info("=== 이니시스 망취소 API 호출 성공 (resultCode: {}) ===", resultCode);
-                        return parsedResult;
+                        return Mono.just(parsedResult);
                     })
                     .onErrorMap(WebClientResponseException.class, ex -> {
                         String errorMessage = "이니시스 망취소 API 호출 실패: HTTP " + ex.getStatusCode() + " - " + ex.getResponseBodyAsString();
