@@ -1,0 +1,48 @@
+spring:
+  profiles:
+    active: test
+
+  datasource:
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.H2Dialect
+        show_sql: true
+        format_sql: true
+    defer-datasource-initialization: true
+
+  sql:
+    init:
+      mode: always
+      data-locations: classpath:data-test.sql
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  logging:
+    level:
+      org.hibernate.SQL: DEBUG
+      org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+      com.example.payment: DEBUG
+
+# 테스트용 토스페이먼츠 설정
+toss:
+  payments:
+    test:
+      secret-key: test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R
+      client-key: test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq
+
+# 테스트용 이니시스 설정
+inicis:
+  test:
+    mid: INIpayTest
+    sign-key: SU5JTElURV9UUklQTEVERVNfS0VZU1RS

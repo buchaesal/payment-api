@@ -318,7 +318,7 @@ public class PaymentService {
                 }
             } else if (!cancelPayments.isEmpty()) {
                 // 승인건 없이 취소건만 있는 경우 (데이터 이상)
-                Payment cancelPayment = cancelPayments.get(0);
+                Payment cancelPayment = cancelPayments.getFirst();
                 mergedPayments.add(cancelPayment);
             }
         }
@@ -415,7 +415,7 @@ public class PaymentService {
             .sum();
         
         // 상품명은 첫 번째 결제 기록에서 가져옴 (모든 결제가 같은 상품이므로)
-        String productName = paymentList.get(0).getProductName();
+        String productName = paymentList.getFirst().getProductName();
         
         logger.info("=== 주문번호로 결제정보 조회 완료 ===");
         return new PaymentOrderResponse(

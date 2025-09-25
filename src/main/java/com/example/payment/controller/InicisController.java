@@ -12,7 +12,6 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/inicis")
-@CrossOrigin(origins = "*")
 public class InicisController {
     
     private static final Logger logger = LoggerFactory.getLogger(InicisController.class);

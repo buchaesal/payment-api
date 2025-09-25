@@ -12,7 +12,9 @@ public class PaymentCancelResult {
     private String orderId;
     private Long cancelAmount;
     private Map<String, Object> pgResult;
-    
+
+    public PaymentCancelResult() {}
+
     public PaymentCancelResult(String paymentMethod, String orderId, Long cancelAmount, Map<String, Object> pgResult) {
         this.paymentMethod = paymentMethod;
         this.orderId = orderId;

@@ -11,7 +11,6 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/member")
-@CrossOrigin(origins = "*")
 public class MemberController {
     
     private static final Logger logger = LoggerFactory.getLogger(MemberController.class);

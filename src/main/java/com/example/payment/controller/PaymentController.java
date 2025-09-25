@@ -9,7 +9,6 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/payment")
-@CrossOrigin(origins = "*") // CORS 설정
 public class PaymentController {
     
     private static final Logger logger = LoggerFactory.getLogger(PaymentController.class);
